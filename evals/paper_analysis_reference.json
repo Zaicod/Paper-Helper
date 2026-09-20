@@ -1,0 +1,144 @@
+{
+  "dataset_name": "paper_analysis_reference_v1",
+  "description": "用于评测文献分析 Agent 的小型人工参考集。参考答案不是字符串匹配标准，评分时应按 rubric 判断语义和证据是否正确。",
+  "papers": [
+    {
+      "paper": {
+        "paper_id": "1706.03762",
+        "source": "arXiv",
+        "title": "Attention Is All You Need",
+        "authors": [
+          "Ashish Vaswani",
+          "Noam Shazeer",
+          "Niki Parmar",
+          "Jakob Uszkoreit",
+          "Llion Jones",
+          "Aidan N. Gomez",
+          "Lukasz Kaiser",
+          "Illia Polosukhin"
+        ],
+        "abstract": "Sequence transduction models usually rely on recurrent or convolutional networks. This paper proposes the Transformer, an encoder-decoder architecture based only on attention, without recurrence or convolution. On WMT 2014 English-to-German translation it reaches 28.4 BLEU, and on English-to-French it reaches 41.8 BLEU, while training more efficiently and allowing substantially more parallelization. The model also generalizes to English constituency parsing.",
+        "published": "2017-06-12",
+        "categories": ["cs.CL", "cs.LG"],
+        "page_url": "https://arxiv.org/abs/1706.03762",
+        "pdf_url": "https://arxiv.org/pdf/1706.03762"
+      },
+      "reference": {
+        "research_problem": "如何在序列到序列任务中摆脱循环网络和卷积网络的顺序计算限制，同时保持或提高建模长距离依赖和机器翻译质量的能力。",
+        "methods": [
+          "提出仅由注意力机制构成的 Transformer 编码器—解码器架构。",
+          "以 self-attention 和 encoder-decoder attention 建模序列关系，不使用 recurrence 或 convolution。",
+          "在 WMT 2014 英德、英法机器翻译以及英语成分句法分析任务上验证。"
+        ],
+        "major_results": [
+          "WMT 2014 英德翻译达到 28.4 BLEU，较当时已有最佳结果（包括集成模型）高出 2 BLEU 以上。",
+          "WMT 2014 英法翻译达到 41.8 BLEU。",
+          "相比循环式架构具有更高并行性和更低训练成本，并能泛化到句法分析。"
+        ]
+      }
+    },
+    {
+      "paper": {
+        "paper_id": "1810.04805",
+        "source": "arXiv",
+        "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+        "authors": ["Jacob Devlin", "Ming-Wei Chang", "Kenton Lee", "Kristina Toutanova"],
+        "abstract": "BERT pre-trains deep bidirectional Transformer representations from unlabeled text by jointly conditioning on both left and right context. A pre-trained BERT model can be fine-tuned with one additional output layer for many language-understanding tasks. It obtains new state-of-the-art results on eleven NLP tasks, including GLUE 80.5, MultiNLI accuracy 86.7%, SQuAD v1.1 test F1 93.2, and SQuAD v2.0 test F1 83.1.",
+        "published": "2018-10-11",
+        "categories": ["cs.CL"],
+        "page_url": "https://arxiv.org/abs/1810.04805",
+        "pdf_url": "https://arxiv.org/pdf/1810.04805"
+      },
+      "reference": {
+        "research_problem": "如何预训练一种能够同时利用左右上下文的通用语言表示，并以很少的任务特定结构适配多种自然语言理解任务。",
+        "methods": [
+          "使用 Transformer 编码器进行深层双向预训练，使每个 token 同时依赖左右上下文。",
+          "下游任务只需增加一个输出层并对全部参数进行微调。"
+        ],
+        "major_results": [
+          "在 11 项 NLP 任务上刷新当时最佳结果。",
+          "GLUE 得分 80.5，MultiNLI 准确率 86.7%。",
+          "SQuAD v1.1 测试 F1 为 93.2，SQuAD v2.0 测试 F1 为 83.1。"
+        ]
+      }
+    },
+    {
+      "paper": {
+        "paper_id": "2005.11401",
+        "source": "arXiv",
+        "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+        "authors": ["Patrick Lewis", "Ethan Perez", "Aleksandra Piktus", "Fabio Petroni", "Vladimir Karpukhin", "Naman Goyal", "Heinrich Kuttler", "Mike Lewis", "Wen-tau Yih", "Tim Rocktaschel", "Sebastian Riedel", "Douwe Kiela"],
+        "abstract": "Large pre-trained language models store factual knowledge in their parameters but have limited ability to access, update, and cite that knowledge. Retrieval-Augmented Generation combines a pre-trained sequence-to-sequence model with a non-parametric memory: a dense vector index of Wikipedia accessed by a neural retriever. RAG-Sequence uses one retrieved document for a whole output sequence, while RAG-Token may use different documents per token. The approach sets state of the art on three open-domain QA tasks and generates more specific, diverse, and factual language than a parametric-only baseline.",
+        "published": "2020-05-22",
+        "categories": ["cs.CL", "cs.AI", "cs.LG"],
+        "page_url": "https://arxiv.org/abs/2005.11401",
+        "pdf_url": "https://arxiv.org/pdf/2005.11401"
+      },
+      "reference": {
+        "research_problem": "如何缓解纯参数化语言模型在知识访问、知识更新和事实溯源方面的限制，从而改善知识密集型 NLP 任务。",
+        "methods": [
+          "把预训练 seq2seq 生成器的参数化记忆与 Wikipedia 稠密向量索引这一非参数化记忆结合。",
+          "使用神经检索器获取相关文档，并对检索文档作为潜变量进行端到端生成。",
+          "提出 RAG-Sequence（整段输出共享文档）和 RAG-Token（不同 token 可依赖不同文档）两种形式。"
+        ],
+        "major_results": [
+          "在三项开放域问答任务上取得当时最佳结果。",
+          "在知识密集型生成任务中优于仅参数化的 seq2seq 基线。",
+          "生成文本在具体性、多样性和事实性方面更好。"
+        ]
+      }
+    },
+    {
+      "paper": {
+        "paper_id": "2106.09685",
+        "source": "arXiv",
+        "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+        "authors": ["Edward J. Hu", "Yelong Shen", "Phillip Wallis", "Zeyuan Allen-Zhu", "Yuanzhi Li", "Shean Wang", "Lu Wang", "Weizhu Chen"],
+        "abstract": "Fine-tuning all parameters of very large language models is expensive and creates a separate full-size model for each task. LoRA freezes the pre-trained weights and injects trainable low-rank decomposition matrices into Transformer layers. On GPT-3 175B, LoRA can reduce trainable parameters by 10,000 times and GPU memory by three times compared with full fine-tuning using Adam. It performs on par with or better than fine-tuning on RoBERTa, DeBERTa, GPT-2, and GPT-3, while adding no inference latency.",
+        "published": "2021-06-17",
+        "categories": ["cs.CL", "cs.AI", "cs.LG"],
+        "page_url": "https://arxiv.org/abs/2106.09685",
+        "pdf_url": "https://arxiv.org/pdf/2106.09685"
+      },
+      "reference": {
+        "research_problem": "如何降低超大预训练模型针对不同下游任务进行全参数微调时的训练参数、显存和模型存储成本，同时维持模型质量。",
+        "methods": [
+          "冻结预训练模型原有权重。",
+          "在 Transformer 层中注入可训练的低秩分解矩阵，用低维参数化表示任务适配更新。",
+          "在 RoBERTa、DeBERTa、GPT-2 和 GPT-3 等模型上与全量微调和其他适配方法比较。"
+        ],
+        "major_results": [
+          "在 GPT-3 175B 上，相对 Adam 全参数微调将可训练参数量最多降低约 10,000 倍、GPU 显存需求降低约 3 倍。",
+          "在多个模型和任务上达到与全参数微调相当或更好的质量。",
+          "合并权重后不引入额外推理延迟。"
+        ]
+      }
+    },
+    {
+      "paper": {
+        "paper_id": "2201.11903",
+        "source": "arXiv",
+        "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+        "authors": ["Jason Wei", "Xuezhi Wang", "Dale Schuurmans", "Maarten Bosma", "Fei Xia", "Ed Chi", "Quoc V. Le", "Denny Zhou"],
+        "abstract": "Chain-of-thought prompting supplies few-shot examples containing intermediate natural-language reasoning steps before the final answer. Experiments show that this prompting method improves large language models on arithmetic, commonsense, and symbolic reasoning tasks, with benefits emerging most strongly at sufficient model scale. With eight chain-of-thought exemplars, PaLM 540B achieves state-of-the-art accuracy on the GSM8K math word-problem benchmark, surpassing fine-tuned GPT-3 with a verifier.",
+        "published": "2022-01-28",
+        "categories": ["cs.CL"],
+        "page_url": "https://arxiv.org/abs/2201.11903",
+        "pdf_url": "https://arxiv.org/pdf/2201.11903"
+      },
+      "reference": {
+        "research_problem": "如何仅通过提示示例激发大语言模型的多步推理能力，而不需要为每项推理任务修改模型或进行专门微调。",
+        "methods": [
+          "在 few-shot prompt 中加入由输入、中间自然语言推理步骤和最终答案组成的示范。",
+          "在算术、常识和符号推理基准上比较标准提示与 chain-of-thought prompting。",
+          "考察模型规模与任务难度对链式思维收益的影响。"
+        ],
+        "major_results": [
+          "Chain-of-thought prompting 显著提升了多类推理任务表现，且提升主要在足够大的模型规模下出现。",
+          "PaLM 540B 使用 8 个链式思维示例在 GSM8K 上取得当时最佳准确率。",
+          "该结果超过了带 verifier 的微调 GPT-3，复杂多步问题上的收益尤其明显。"
+        ]
+      }
+    }
+  ]
+}
