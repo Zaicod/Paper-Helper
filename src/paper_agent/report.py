@@ -6,6 +6,9 @@ from paper_agent.models import ResearchReport
 
 
 def render_markdown(report: ResearchReport) -> str:
+
+
+
     lines = [
         f"# 研究方向报告：{report.topic}",
         "",
@@ -39,6 +42,29 @@ def render_markdown(report: ResearchReport) -> str:
         "## 单篇论文分析",
         "",
     ]
+
+    if report.analysis_failures:
+        lines[5:5] = [
+            "> [!WARNING]",
+            (
+                f"> ⚠️ **覆盖不完整**：检索到 {len(report.papers)} 篇论文，"
+                f"成功分析 {len(report.analyses)} 篇，"
+                f"失败 {len(report.analysis_failures)} 篇。"
+            ),
+            "> 当前总结和研究想法仅基于成功分析的论文。",
+            "",
+            "> 失败明细：",
+            *[
+                (
+                    f"> - `{failure.paper_id}`："
+                    f"{failure.error_type}，"
+                    f"重试 {failure.retry_count} 次"
+                )
+                for failure in report.analysis_failures
+            ],
+            "",
+        ]
+
 
     paper_by_id = {paper.paper_id: paper for paper in report.papers}
     for analysis in report.analyses:
@@ -100,8 +126,8 @@ def render_markdown(report: ResearchReport) -> str:
         )
 
     lines.extend([f"> 注意：{report.idea_portfolio.caution}", ""])
-    return "\n".join(lines)
 
+    return "\n".join(lines)
 
 def save_report(report: ResearchReport, output_dir: Path) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)

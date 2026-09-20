@@ -74,7 +74,10 @@ async def run_command(args: argparse.Namespace) -> tuple[Path, Path]:
 
         search = _build_live_search(args.source)
         team = AgentResearchTeam(
-            model=args.model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
+            basemodel=args.model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+            analyst_model=args.model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+            synthesis_model=args.model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+            ideator_model=args.model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
         )
     else:
         api_key = os.getenv("DASHSCOPE_API_KEY")
@@ -96,7 +99,10 @@ async def run_command(args: argparse.Namespace) -> tuple[Path, Path]:
         )
         search = _build_live_search(args.source)
         team = AgentResearchTeam(
-            model=model,
+            basemodel=model,
+            analyst_model=model,
+            synthesis_model=model,
+            ideator_model=model,
             model_settings=qwen_model_settings(),
         )
 
