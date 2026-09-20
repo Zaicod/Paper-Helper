@@ -20,7 +20,9 @@ from paper_agent.agent_team import AgentResearchTeam
 from paper_agent.evaluation import (
     EvaluatorJudgment,
     HumanScoreSheet,
+    build_evaluation_summary,
     build_human_score_sheet,
+    build_score_comparison,
     deterministic_checks,
     load_reference_dataset,
     save_json,
@@ -231,33 +233,18 @@ async def evaluate(args: argparse.Namespace) -> None:
         )
         judgments.append(result.final_output)
 
-    human_by_id = {item.paper_id: item for item in human_sheet.judgments}
-    comparison = []
-    for judgment in judgments:
-        human = human_by_id[judgment.paper_id]
-        assert human.scores is not None
-        comparison.append(
-            {
-                "paper_id": judgment.paper_id,
-                "human_scores": human.scores.model_dump(),
-                "human_total": human.scores.total,
-                "evaluator_scores": judgment.scores.model_dump(),
-                "evaluator_total": judgment.scores.total,
-                "total_difference": judgment.scores.total - human.scores.total,
-                "requires_discussion": any(
-                    abs(judgment.scores.model_dump()[key] - human.scores.model_dump()[key]) >= 2
-                    for key in human.scores.model_dump()
-                ),
-            }
-        )
+    comparison = build_score_comparison(human_sheet, judgments)
+    summary = build_evaluation_summary(human_sheet, judgments)
 
     save_json(args.results_dir / "evaluator_scores.json", {
         "warning": "Evaluator Agent 是第二意见，不是唯一真值。最终判断以人工复核和证据为准。",
         "judgments": [item.model_dump(mode="json") for item in judgments],
     })
     save_json(args.results_dir / "score_comparison.json", comparison)
+    save_json(args.results_dir / "evaluation_summary.json", summary)
     print(f"Evaluator 评分：{args.results_dir / 'evaluator_scores.json'}")
     print(f"人机差异表：{args.results_dir / 'score_comparison.json'}")
+    print(f"评测汇总：{args.results_dir / 'evaluation_summary.json'}")
 
 
 def main() -> None:

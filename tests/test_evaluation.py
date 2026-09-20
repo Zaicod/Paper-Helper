@@ -5,12 +5,16 @@ import pytest
 
 from paper_agent.evaluation import (
     DimensionScores,
+    EvaluatorJudgment,
+    DimensionRationales,
     HumanScoreSheet,
     build_human_score_sheet,
+    build_score_comparison,
     deterministic_checks,
     load_reference_dataset,
     validate_completed_human_scores,
 )
+from agents import AgentOutputSchema
 from paper_agent.models import PaperAnalysis
 
 
@@ -69,3 +73,44 @@ def test_deterministic_checks_detect_identifier_mismatch():
 
     assert checks["paper_id_exact"] is False
     assert checks["title_exact"] is True
+
+
+def test_evaluator_output_supports_strict_json_schema():
+    schema = AgentOutputSchema(EvaluatorJudgment).json_schema()
+
+    assert schema["additionalProperties"] is False
+    assert schema["$defs"]["DimensionRationales"]["additionalProperties"] is False
+
+
+def test_one_point_difference_requires_discussion():
+    dataset = load_reference_dataset(DATASET_PATH)
+    sheet = build_human_score_sheet(dataset)
+    for judgment in sheet.judgments:
+        judgment.scores = DimensionScores(
+            research_problem=2,
+            methods=2,
+            major_results=2,
+            evidence_discipline=2,
+        )
+    first_id = sheet.judgments[0].paper_id
+    evaluator = EvaluatorJudgment(
+        paper_id=first_id,
+        scores=DimensionScores(
+            research_problem=1,
+            methods=2,
+            major_results=2,
+            evidence_discipline=2,
+        ),
+        rationale=DimensionRationales(
+            research_problem="遗漏约束",
+            methods="完整",
+            major_results="完整",
+            evidence_discipline="无越界",
+        ),
+        suspected_unsupported_claims=[],
+        verdict="needs_review",
+    )
+
+    comparison = build_score_comparison(sheet, [evaluator])
+
+    assert comparison[0]["requires_discussion"] is True

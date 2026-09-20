@@ -1,0 +1,94 @@
+{
+  "metric_definitions": {
+    "accuracy": "研究问题、方法、主要结果三个维度的得分之和 / 满分。",
+    "evidence_fidelity": "evidence_discipline 得分之和 / 满分。",
+    "agreement": "人工与 evaluator 完全相同的维度数 / 全部评分维度数。"
+  },
+  "sample_count": 5,
+  "human": {
+    "dimension_totals": {
+      "research_problem": 8,
+      "methods": 9,
+      "major_results": 10,
+      "evidence_discipline": 10
+    },
+    "overall_score": 37,
+    "overall_max": 40,
+    "overall_percent": 92.5,
+    "accuracy_score": 27,
+    "accuracy_max": 30,
+    "accuracy_percent": 90.0,
+    "evidence_fidelity_score": 10,
+    "evidence_fidelity_max": 10,
+    "evidence_fidelity_percent": 100.0
+  },
+  "evaluator": {
+    "dimension_totals": {
+      "research_problem": 9,
+      "methods": 10,
+      "major_results": 10,
+      "evidence_discipline": 10
+    },
+    "overall_score": 39,
+    "overall_max": 40,
+    "overall_percent": 97.5,
+    "accuracy_score": 29,
+    "accuracy_max": 30,
+    "accuracy_percent": 96.67,
+    "evidence_fidelity_score": 10,
+    "evidence_fidelity_max": 10,
+    "evidence_fidelity_percent": 100.0
+  },
+  "agreement": {
+    "exact_dimension_matches": 18,
+    "dimension_count": 20,
+    "exact_agreement_percent": 90.0,
+    "mean_absolute_difference": 0.1
+  },
+  "score_disagreements": [
+    {
+      "paper_id": "1810.04805",
+      "dimension": "research_problem",
+      "human_score": 1,
+      "evaluator_score": 2,
+      "human_notes": "没有突出很少的任务特定结构",
+      "evaluator_rationale": "Agent准确概括了论文的核心问题：从无标签文本预训练深度双向Transformer表示，并通过微调适配多种任务。这与参考答案语义一致，且涵盖了摘要中的关键约束（无标签、双向、微调）。"
+    },
+    {
+      "paper_id": "2106.09685",
+      "dimension": "methods",
+      "human_score": 1,
+      "evaluator_score": 2,
+      "human_notes": "方法部分没说明在 RoBERTa、DeBERTa、GPT-2 和 GPT-3 等模型上验证",
+      "evaluator_rationale": "Agent正确提取了LoRA的两个核心机制：冻结预训练权重（frozen pre-trained weights）和注入可训练的低秩分解矩阵（injected trainable low-rank decomposition matrices）。虽然未详细展开“比较实验”作为方法的一部分，但准确描述了算法本身的核心创新点，符合评分标准中关于核心方法准确的要求。"
+    }
+  ],
+  "human_low_score_cases": [
+    {
+      "paper_id": "1810.04805",
+      "dimension": "research_problem",
+      "human_score": 1,
+      "evaluator_score": 2,
+      "human_notes": "没有突出很少的任务特定结构",
+      "status": "human_stricter_than_evaluator"
+    },
+    {
+      "paper_id": "2106.09685",
+      "dimension": "methods",
+      "human_score": 1,
+      "evaluator_score": 2,
+      "human_notes": "方法部分没说明在 RoBERTa、DeBERTa、GPT-2 和 GPT-3 等模型上验证",
+      "status": "human_stricter_than_evaluator"
+    },
+    {
+      "paper_id": "2201.11903",
+      "dimension": "research_problem",
+      "human_score": 1,
+      "evaluator_score": 1,
+      "human_notes": "研究问题没有说明只通过提示示例激发多步推理，并且不需要修改模型或专门微调",
+      "status": "human_and_evaluator_agree"
+    }
+  ],
+  "evaluator_suspected_unsupported_claims": [],
+  "caution": "Evaluator 与分析 Agent 使用同一模型系列，可能共享偏差；该结果只作为人工评审的第二意见。"
+}

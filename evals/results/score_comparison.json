@@ -1,0 +1,97 @@
+[
+  {
+    "paper_id": "1706.03762",
+    "human_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "human_total": 8,
+    "evaluator_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "evaluator_total": 8,
+    "total_difference": 0,
+    "requires_discussion": false
+  },
+  {
+    "paper_id": "1810.04805",
+    "human_scores": {
+      "research_problem": 1,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "human_total": 7,
+    "evaluator_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "evaluator_total": 8,
+    "total_difference": 1,
+    "requires_discussion": true
+  },
+  {
+    "paper_id": "2005.11401",
+    "human_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "human_total": 8,
+    "evaluator_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "evaluator_total": 8,
+    "total_difference": 0,
+    "requires_discussion": false
+  },
+  {
+    "paper_id": "2106.09685",
+    "human_scores": {
+      "research_problem": 2,
+      "methods": 1,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "human_total": 7,
+    "evaluator_scores": {
+      "research_problem": 2,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "evaluator_total": 8,
+    "total_difference": 1,
+    "requires_discussion": true
+  },
+  {
+    "paper_id": "2201.11903",
+    "human_scores": {
+      "research_problem": 1,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "human_total": 7,
+    "evaluator_scores": {
+      "research_problem": 1,
+      "methods": 2,
+      "major_results": 2,
+      "evidence_discipline": 2
+    },
+    "evaluator_total": 7,
+    "total_difference": 0,
+    "requires_discussion": false
+  }
+]

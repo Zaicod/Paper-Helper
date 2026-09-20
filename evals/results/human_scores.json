@@ -14,28 +14,53 @@
   "judgments": [
     {
       "paper_id": "1706.03762",
-      "scores": null,
+      "scores": {
+        "research_problem": 2,
+        "methods": 2,
+        "major_results": 2,
+        "evidence_discipline": 2
+      },
       "notes": ""
     },
     {
       "paper_id": "1810.04805",
-      "scores": null,
-      "notes": ""
+      "scores": {
+        "research_problem": 1,
+        "methods": 2,
+        "major_results": 2,
+        "evidence_discipline": 2
+      },
+      "notes": "没有突出很少的任务特定结构"
     },
     {
       "paper_id": "2005.11401",
-      "scores": null,
+      "scores": {
+        "research_problem": 2,
+        "methods": 2,
+        "major_results": 2,
+        "evidence_discipline": 2
+      },
       "notes": ""
     },
     {
       "paper_id": "2106.09685",
-      "scores": null,
-      "notes": ""
+      "scores": {
+        "research_problem": 2,
+        "methods": 1,
+        "major_results": 2,
+        "evidence_discipline": 2
+      },
+      "notes": "方法部分没说明在 RoBERTa、DeBERTa、GPT-2 和 GPT-3 等模型上验证"
     },
     {
       "paper_id": "2201.11903",
-      "scores": null,
-      "notes": ""
+      "scores": {
+        "research_problem": 1,
+        "methods": 2,
+        "major_results": 2,
+        "evidence_discipline": 2
+      },
+      "notes": "研究问题没有说明只通过提示示例激发多步推理，并且不需要修改模型或专门微调"
     }
   ]
 }

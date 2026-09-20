@@ -51,10 +51,17 @@ class HumanJudgment(BaseModel):
     notes: str = ""
 
 
+class DimensionRationales(BaseModel):
+    research_problem: str
+    methods: str
+    major_results: str
+    evidence_discipline: str
+
+
 class EvaluatorJudgment(BaseModel):
     paper_id: str
     scores: DimensionScores
-    rationale: dict[str, str]
+    rationale: DimensionRationales
     suspected_unsupported_claims: list[str]
     verdict: Literal["pass", "needs_review", "fail"]
 
@@ -123,4 +130,167 @@ def deterministic_checks(paper: Paper, analysis: PaperAnalysis) -> dict[str, boo
         "research_problem_nonempty": bool(analysis.research_problem.strip()),
         "methods_nonempty": bool(analysis.methods),
         "results_nonempty": bool(analysis.results),
+    }
+
+
+def build_score_comparison(
+    human_sheet: HumanScoreSheet,
+    evaluator_judgments: list[EvaluatorJudgment],
+) -> list[dict]:
+    human_by_id = {item.paper_id: item for item in human_sheet.judgments}
+    comparison = []
+    for judgment in evaluator_judgments:
+        human = human_by_id[judgment.paper_id]
+        if human.scores is None:
+            raise ValueError(f"人工评分未完成：{judgment.paper_id}")
+        human_scores = human.scores.model_dump()
+        evaluator_scores = judgment.scores.model_dump()
+        comparison.append(
+            {
+                "paper_id": judgment.paper_id,
+                "human_scores": human_scores,
+                "human_total": human.scores.total,
+                "evaluator_scores": evaluator_scores,
+                "evaluator_total": judgment.scores.total,
+                "total_difference": judgment.scores.total - human.scores.total,
+                "requires_discussion": any(
+                    evaluator_scores[key] != human_scores[key]
+                    for key in human_scores
+                ),
+            }
+        )
+    return comparison
+
+
+def build_evaluation_summary(
+    human_sheet: HumanScoreSheet,
+    evaluator_judgments: list[EvaluatorJudgment],
+) -> dict:
+    evaluator_by_id = {item.paper_id: item for item in evaluator_judgments}
+    dimensions = tuple(RUBRIC)
+    human_dimension_totals = {name: 0 for name in dimensions}
+    evaluator_dimension_totals = {name: 0 for name in dimensions}
+    disagreements = []
+    low_score_cases = []
+    unsupported_claims = []
+
+    for human in human_sheet.judgments:
+        if human.scores is None:
+            raise ValueError(f"人工评分未完成：{human.paper_id}")
+        evaluator = evaluator_by_id[human.paper_id]
+        human_scores = human.scores.model_dump()
+        evaluator_scores = evaluator.scores.model_dump()
+        rationales = evaluator.rationale.model_dump()
+        for dimension in dimensions:
+            human_score = human_scores[dimension]
+            evaluator_score = evaluator_scores[dimension]
+            human_dimension_totals[dimension] += human_score
+            evaluator_dimension_totals[dimension] += evaluator_score
+            if human_score != evaluator_score:
+                disagreements.append(
+                    {
+                        "paper_id": human.paper_id,
+                        "dimension": dimension,
+                        "human_score": human_score,
+                        "evaluator_score": evaluator_score,
+                        "human_notes": human.notes,
+                        "evaluator_rationale": rationales[dimension],
+                    }
+                )
+            if human_score < 2:
+                low_score_cases.append(
+                    {
+                        "paper_id": human.paper_id,
+                        "dimension": dimension,
+                        "human_score": human_score,
+                        "evaluator_score": evaluator_score,
+                        "human_notes": human.notes,
+                        "status": (
+                            "human_and_evaluator_agree"
+                            if human_score == evaluator_score
+                            else "human_stricter_than_evaluator"
+                        ),
+                    }
+                )
+        for claim in evaluator.suspected_unsupported_claims:
+            unsupported_claims.append(
+                {"paper_id": human.paper_id, "claim": claim}
+            )
+
+    paper_count = len(human_sheet.judgments)
+    max_per_dimension = paper_count * 2
+    human_total = sum(human_dimension_totals.values())
+    evaluator_total = sum(evaluator_dimension_totals.values())
+    content_dimensions = ("research_problem", "methods", "major_results")
+    human_content = sum(human_dimension_totals[name] for name in content_dimensions)
+    evaluator_content = sum(
+        evaluator_dimension_totals[name] for name in content_dimensions
+    )
+    max_content = paper_count * len(content_dimensions) * 2
+    exact_dimension_matches = paper_count * len(dimensions) - len(disagreements)
+
+    return {
+        "metric_definitions": {
+            "accuracy": "研究问题、方法、主要结果三个维度的得分之和 / 满分。",
+            "evidence_fidelity": "evidence_discipline 得分之和 / 满分。",
+            "agreement": "人工与 evaluator 完全相同的维度数 / 全部评分维度数。",
+        },
+        "sample_count": paper_count,
+        "human": {
+            "dimension_totals": human_dimension_totals,
+            "overall_score": human_total,
+            "overall_max": paper_count * len(dimensions) * 2,
+            "overall_percent": round(human_total / (paper_count * len(dimensions) * 2) * 100, 2),
+            "accuracy_score": human_content,
+            "accuracy_max": max_content,
+            "accuracy_percent": round(human_content / max_content * 100, 2),
+            "evidence_fidelity_score": human_dimension_totals["evidence_discipline"],
+            "evidence_fidelity_max": max_per_dimension,
+            "evidence_fidelity_percent": round(
+                human_dimension_totals["evidence_discipline"]
+                / max_per_dimension
+                * 100,
+                2,
+            ),
+        },
+        "evaluator": {
+            "dimension_totals": evaluator_dimension_totals,
+            "overall_score": evaluator_total,
+            "overall_max": paper_count * len(dimensions) * 2,
+            "overall_percent": round(evaluator_total / (paper_count * len(dimensions) * 2) * 100, 2),
+            "accuracy_score": evaluator_content,
+            "accuracy_max": max_content,
+            "accuracy_percent": round(evaluator_content / max_content * 100, 2),
+            "evidence_fidelity_score": evaluator_dimension_totals["evidence_discipline"],
+            "evidence_fidelity_max": max_per_dimension,
+            "evidence_fidelity_percent": round(
+                evaluator_dimension_totals["evidence_discipline"]
+                / max_per_dimension
+                * 100,
+                2,
+            ),
+        },
+        "agreement": {
+            "exact_dimension_matches": exact_dimension_matches,
+            "dimension_count": paper_count * len(dimensions),
+            "exact_agreement_percent": round(
+                exact_dimension_matches / (paper_count * len(dimensions)) * 100,
+                2,
+            ),
+            "mean_absolute_difference": round(
+                sum(
+                    abs(item["evaluator_score"] - item["human_score"])
+                    for item in disagreements
+                )
+                / (paper_count * len(dimensions)),
+                3,
+            ),
+        },
+        "score_disagreements": disagreements,
+        "human_low_score_cases": low_score_cases,
+        "evaluator_suspected_unsupported_claims": unsupported_claims,
+        "caution": (
+            "Evaluator 与分析 Agent 使用同一模型系列，可能共享偏差；"
+            "该结果只作为人工评审的第二意见。"
+        ),
     }
