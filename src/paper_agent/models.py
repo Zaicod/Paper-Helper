@@ -72,3 +72,11 @@ class ResearchReport(BaseModel):
     analyses: list[PaperAnalysis]
     synthesis: FieldSynthesis
     idea_portfolio: IdeaPortfolio
+    analysis_failures: list[AnalysisFailure] = Field(default_factory=list)
+
+class AnalysisFailure(BaseModel):
+    """A paper that could not be analyzed after retries."""
+
+    paper_id: str
+    error_type: str
+    retry_count: int

@@ -20,27 +20,30 @@ class AgentResearchTeam:
 
     def __init__(
         self,
-        model: str | Model,
+        basemodel: str | Model,
+        analyst_model: str | Model,
+        synthesis_model: str | Model,
+        ideator_model: str | Model,
         model_settings: ModelSettings | None = None,
     ) -> None:
         self.analyst = Agent(
             name="文献分析员",
             instructions=ANALYST_INSTRUCTIONS,
-            model=model,
+            model=analyst_model,
             model_settings=model_settings,
             output_type=PaperAnalysis,
         )
         self.synthesizer = Agent(
             name="文献总结员",
             instructions=SYNTHESIZER_INSTRUCTIONS,
-            model=model,
+            model=synthesis_model,
             model_settings=model_settings,
             output_type=FieldSynthesis,
         )
         self.ideator = Agent(
             name="研究构思员",
             instructions=IDEATOR_INSTRUCTIONS,
-            model=model,
+            model=ideator_model,
             model_settings=model_settings,
             output_type=IdeaPortfolio,
         )
@@ -83,4 +86,3 @@ def _json(value: object) -> str:
     import json
 
     return json.dumps(value, ensure_ascii=False, indent=2)
-
