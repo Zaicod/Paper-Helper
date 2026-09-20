@@ -6,6 +6,14 @@ from openai import AsyncOpenAI
 
 DEFAULT_QWEN_MODEL = "qwen3.8-flash"
 DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_QWEN_EMBEDDING_MODEL = "text-embedding-v4"
+
+
+def build_qwen_client(
+    api_key: str,
+    base_url: str = DEFAULT_QWEN_BASE_URL,
+) -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=api_key, base_url=base_url)
 
 
 def build_qwen_model(
@@ -15,7 +23,7 @@ def build_qwen_model(
 ) -> OpenAIChatCompletionsModel:
     """Adapt DashScope's OpenAI-compatible Chat Completions API to Agents SDK."""
 
-    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    client = build_qwen_client(api_key=api_key, base_url=base_url)
     # Agents SDK tracing exports to OpenAI. Disable it when no OpenAI key is used.
     set_tracing_disabled(True)
     return OpenAIChatCompletionsModel(
@@ -29,4 +37,3 @@ def qwen_model_settings() -> ModelSettings:
     """Use non-thinking mode to reduce tokens and stabilize JSON Schema output."""
 
     return ModelSettings(extra_body={"enable_thinking": False})
-

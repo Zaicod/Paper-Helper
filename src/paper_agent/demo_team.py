@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from paper_agent.models import (
+    ContextPacket,
     FieldSynthesis,
     IdeaPortfolio,
     Paper,
@@ -12,7 +13,9 @@ from paper_agent.models import (
 class DemoResearchTeam:
     """A zero-cost stand-in. Outputs are intentionally marked as demonstrations."""
 
-    async def analyze_paper(self, paper: Paper) -> PaperAnalysis:
+    async def analyze_paper(
+        self, paper: Paper, context: ContextPacket | None = None
+    ) -> PaperAnalysis:
         return PaperAnalysis(
             paper_id=paper.paper_id,
             title=paper.title,
@@ -23,6 +26,11 @@ class DemoResearchTeam:
             limitations=["当前只提供摘要，无法验证完整实验细节。"],
             evidence_notes=[f"来源记录：{paper.paper_id}；此输出用于跑通工作流。"],
             datasets=["数据集"],
+            citations=(
+                [chunk.chunk_id for chunk in context.chunks]
+                if context is not None
+                else []
+            ),
         )
 
     async def synthesize(
@@ -42,7 +50,8 @@ class DemoResearchTeam:
     async def ideate(
         self, topic: str, synthesis: FieldSynthesis
     ) -> IdeaPortfolio:
-        ids = [part.strip() for part in synthesis.evidence_map[0].split(":", 1)[-1].split(",")]
+        evidence_ids = synthesis.evidence_map[0].replace("：", ":")
+        ids = [part.strip() for part in evidence_ids.split(":", 1)[-1].split(",")]
         return IdeaPortfolio(
             topic=topic,
             ideas=[
@@ -66,4 +75,3 @@ class DemoResearchTeam:
             ],
             caution="这是离线演示想法，未经过全面新颖性检索或实验验证。",
         )
-

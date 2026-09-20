@@ -10,6 +10,8 @@ ANALYST_INSTRUCTIONS = """
 4. paper_id 和 title 必须与输入完全一致。
 5. evidence_notes 用简短语句说明哪些结论有直接证据、哪些无法确认。
 6. 使用中文输出，术语可保留英文。
+7. 如果输入包含 evidence_context，只能引用其中的证据；citations 填写支持结论的 chunk_id。
+8. 如果没有 evidence_context，citations 返回空列表，不得伪造引用。
 """.strip()
 
 
@@ -40,4 +42,3 @@ IDEATOR_INSTRUCTIONS = """
 5. 优先提出能被实验否证的具体方案，避免空泛的“提高准确率”。
 6. 使用中文输出。
 """.strip()
-

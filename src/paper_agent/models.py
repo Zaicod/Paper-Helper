@@ -31,6 +31,40 @@ class PaperAnalysis(BaseModel):
     limitations: list[str]
     evidence_notes: list[str]
     datasets: list[str]
+    citations: list[str] = Field(default_factory=list)
+
+
+class EvidenceChunk(BaseModel):
+    """A retrievable passage with enough metadata to audit its origin."""
+
+    chunk_id: str
+    paper_id: str
+    text: str
+    source_url: str
+    page_number: int | None = None
+    score: float = 0.0
+
+
+class ContextPacket(BaseModel):
+    """Evidence selected for one model call under an explicit token budget."""
+
+    query: str
+    chunks: list[EvidenceChunk]
+    estimated_tokens: int
+    token_budget: int
+    dropped_chunk_ids: list[str] = Field(default_factory=list)
+
+
+class ContextAudit(BaseModel):
+    """Compact context-engineering trace stored without duplicating full passages."""
+
+    paper_id: str
+    query: str
+    selected_chunk_ids: list[str]
+    dropped_count: int
+    estimated_tokens: int
+    token_budget: int
+    source_mode: str
 
 
 class FieldSynthesis(BaseModel):
@@ -65,6 +99,16 @@ class IdeaPortfolio(BaseModel):
     caution: str
 
 
+class AnalysisFailure(BaseModel):
+    """A paper that could not be analyzed after retries."""
+
+    paper_id: str
+    error_type: str
+    retry_count: int
+    stage: str = "analysis"
+    message: str = ""
+
+
 class ResearchReport(BaseModel):
     topic: str
     generated_at: datetime
@@ -73,10 +117,4 @@ class ResearchReport(BaseModel):
     synthesis: FieldSynthesis
     idea_portfolio: IdeaPortfolio
     analysis_failures: list[AnalysisFailure] = Field(default_factory=list)
-
-class AnalysisFailure(BaseModel):
-    """A paper that could not be analyzed after retries."""
-
-    paper_id: str
-    error_type: str
-    retry_count: int
+    context_audits: list[ContextAudit] = Field(default_factory=list)

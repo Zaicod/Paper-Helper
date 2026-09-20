@@ -2,13 +2,13 @@
 
 ## 1. 系统边界
 
-用户给出研究主题，系统返回：单篇论文卡片、跨论文领域总结、候选创新想法。第一版只使用论文标题和摘要。这个边界很重要：没有读取正文，就不能声称获得了实验表格、精确指标或完整局限性。
+用户给出研究主题，系统返回：带证据引用的单篇论文卡片、跨论文领域总结、候选创新想法。默认模式只使用标题和摘要；启用 `--rag pdf` 后优先读取 PDF 正文，并对失败论文显式回退到摘要。
 
 ## 2. 核心模块
 
 ### `models.py`：数据合同
 
-这里定义 `Paper`、`PaperAnalysis`、`FieldSynthesis`、`ResearchIdea` 和 `ResearchReport`。Agent 输出不是随意文本，而必须满足这些结构。
+这里定义 `Paper`、`EvidenceChunk`、`ContextPacket`、`PaperAnalysis`、`FieldSynthesis`、`ResearchIdea` 和 `ResearchReport`。Agent 输出不是随意文本，而必须满足这些结构。
 
 设计意义：
 
@@ -35,15 +35,21 @@
 
 设计意义：把厂商适配、角色定义和工作流分离。OpenAI 与 Qwen 共用完全相同的专家角色和流程；未来替换模型、调整 Prompt 或做 A/B 测试时，不必修改业务编排。
 
+### `rag.py` 与 `context.py`：证据和上下文工程
+
+`rag.py` 负责 PDF 获取、文本分块、Embedding、向量检索和索引持久化；`context.py` 负责去重、排序、token 预算和丢弃记录。
+
+两者拆分是因为“检索到哪些候选”和“允许哪些候选进入模型上下文”是两个不同问题。前者优化召回，后者控制精度、成本和上下文污染。
+
 ### `workflow.py`：编排器
 
 编排器明确规定数据依赖：
 
 ```text
-search(topic)
-    ├─ analyze(paper 1) ─┐
-    ├─ analyze(paper 2) ─┼─ synthesize(all analyses) ─ ideate(synthesis)
-    └─ analyze(paper 3) ─┘
+search(topic) → index evidence
+    ├─ retrieve(paper 1) → analyze(paper 1) ─┐
+    ├─ retrieve(paper 2) → analyze(paper 2) ─┼─ synthesize ─ ideate
+    └─ retrieve(paper 3) → analyze(paper 3) ─┘
 ```
 
 逐篇分析互不依赖，因此并行；综合需要看到所有论文，因此串行；创新构思需要领域空白，因此位于最后。
@@ -52,7 +58,15 @@ search(topic)
 
 ### `report.py`：表现层
 
-报告渲染不调用模型，只把结构化结果变成 Markdown。这样可以保证保存过程不会改变研究内容，也能很容易增加网页或数据库输出。
+报告渲染不调用模型，只把同一个 `ResearchReport` 变成 Markdown、HTML 和 JSON。这样可以保证表现层不会改变研究内容。
+
+### `mcp_server.py`：协议边界
+
+FastMCP Server 把搜索、建库、证据检索和报告读取发布为标准工具。业务服务可单元测试，stdio transport 另有真实协议集成测试。
+
+### `feedback.py`：反馈与奖励数据
+
+人工评分被转换成可复查 reward，而 evaluator 只保留为诊断信号。模块能够导出奖励轨迹和 SFT 候选，并明确指出当前单候选数据不满足 DPO/GRPO。
 
 ### `demo_team.py`：离线替身
 
@@ -65,6 +79,8 @@ search(topic)
 ```text
 topic
 → papers
+→ evidence chunks
+→ context packets + context audits
 → analyses
 → synthesis
 → ideas
@@ -83,9 +99,9 @@ topic
 
 ## 5. 下一版的关键演进
 
-1. PDF 下载、版面解析和章节级切分。
-2. 向量检索与带页码的证据引用。
-3. 查询规划：把研究方向扩展成多个检索式并去重。
+1. 加入 OCR 和更准确的版面/章节解析。
+2. 为检索建立带标注的问题集，计算 Recall@k、MRR 和引用命中率。
+3. 查询规划 Agent：把研究方向扩展成多个检索式并去重。
 4. 评审 Agent：检查证据覆盖、事实一致性和想法的新颖性。
-5. 断点恢复、缓存、重试、费用与 token 统计。
-6. 评测集：检索召回率、字段正确率、引用忠实度、创新想法可行性。
+5. 数据库任务状态、缓存、断点恢复、费用和精确 tokenizer 统计。
+6. 对相同输入采样多候选，收集偏好对或可验证奖励，再决定 SFT/DPO/GRPO。

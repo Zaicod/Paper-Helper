@@ -2,6 +2,7 @@ from paper_agent.demo_team import DemoResearchTeam
 from paper_agent.models import Paper
 from paper_agent.search import FixtureSearchClient
 from paper_agent.workflow import ResearchWorkflow
+from paper_agent.rag import HashingEmbedder, PaperRAG
 import pytest
 
 
@@ -98,3 +99,19 @@ async def test_workflow_stops_when_all_analyses_fail() -> None:
 
     with pytest.raises(RuntimeError, match="all paper analyses failed"):
         await workflow.run("RAG", limit=5)
+
+
+async def test_workflow_records_rag_context_audit() -> None:
+    evidence = PaperRAG(HashingEmbedder())
+    workflow = ResearchWorkflow(
+        FixtureSearchClient(),
+        DemoResearchTeam(),
+        evidence=evidence,
+    )
+
+    report = await workflow.run("RAG", limit=1)
+
+    assert len(report.context_audits) == 1
+    assert report.context_audits[0].paper_id == "demo-001"
+    assert report.context_audits[0].source_mode == "abstract"
+    assert report.analyses[0].citations

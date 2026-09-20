@@ -7,13 +7,17 @@
   ↓
 文献搜索工具（确定性 I/O）
   ↓
-文献分析 Agent（每篇论文可并行）
+PDF/摘要解析 → 分块 → Embedding → 向量索引
+  ↓
+上下文工程（检索、去重、token 预算、来源审计）
+  ↓
+文献分析 Agent（每篇论文可并行，输出 chunk 引用）
   ↓
 领域总结 Agent（跨论文归纳）
   ↓
 创新构思 Agent（基于证据提出假设）
   ↓
-Markdown 报告 + JSON 中间结果
+Markdown + HTML 报告 + JSON 中间结果
 ```
 
 ## 为什么从这个架构开始
@@ -81,9 +85,69 @@ $env:OPENAI_MODEL="gpt-5.6-luna"
 paper-agent run --topic "multi-agent reinforcement learning" --mode live --provider openai --limit 5
 ```
 
-真实模式会查询 arXiv 的公开 API，并用 Agents SDK 依次执行三个专职 Agent。第一版只分析题目与摘要：这是刻意限定的 MVP，报告会明确标注“无法从摘要确认”的内容，避免假装读过全文。
+真实模式会查询 arXiv/OpenAlex，并用 Agents SDK 执行三个专职 Agent。不启用 `--rag` 时只分析题目与摘要。
 
-## 4. 从哪里读代码
+## 4. 启用全文 RAG 与上下文工程
+
+零成本本地向量演示：
+
+```powershell
+paper-agent run --topic "retrieval augmented generation" --mode demo `
+  --rag abstract --embedding-provider local --context-token-budget 2000
+```
+
+真实 PDF RAG：
+
+```powershell
+paper-agent run --topic "retrieval augmented generation" --mode live `
+  --provider qwen --source openalex --limit 3 `
+  --rag pdf --embedding-provider qwen `
+  --embedding-model text-embedding-v4 `
+  --context-token-budget 6000
+```
+
+流程会优先下载 PDF、按页分块、生成 Embedding、执行向量检索，并把入选 chunk 作为证据交给分析 Agent。PDF 下载或解析失败时会显式记录 `abstract_fallback`。报告中的 `context_audits` 会记录来源模式、入选 chunk、丢弃数量和估算 token。
+
+`local` 使用确定性 Hashing Embedding，适合测试但语义能力有限；求职演示应展示一次 `qwen` Embedding 的 live 结果。
+
+## 5. MCP Server
+
+stdio 模式：
+
+```powershell
+paper-agent-mcp --transport stdio
+```
+
+HTTP 模式：
+
+```powershell
+paper-agent-mcp --transport streamable-http
+```
+
+MCP Server 暴露四个工具：
+
+- `search_papers`：搜索 arXiv/OpenAlex。
+- `index_papers`：把论文元数据和摘要加入本地向量索引。
+- `retrieve_evidence`：按查询和 paper_id 检索证据。
+- `read_research_report`：安全读取 `outputs` 中的 JSON 报告。
+
+这提供了可展示的 MCP 项目证据：工具 schema、异步调用、有状态索引和路径穿越防护。
+
+## 6. Agentic-RL 数据闭环
+
+```powershell
+paper-agent-feedback --results-dir evals/results --output-dir training/data
+```
+
+该命令把人工评分、Agent 输出和 evaluator 第二意见导出为：
+
+- `rewarded_trajectories.jsonl`：带人工奖励的完整轨迹；
+- `sft_candidates.jsonl`：高质量 SFT 候选；
+- `manifest.json`：数据规模、奖励来源和训练适用性。
+
+当前每个 prompt 只有一个 completion，因此不能假装已经具备 DPO/GRPO 数据。下一步需要对同一输入采样多个候选，再做人类偏好或可验证奖励标注。
+
+## 7. 从哪里读代码
 
 建议按以下顺序阅读：
 
@@ -92,13 +156,19 @@ paper-agent run --topic "multi-agent reinforcement learning" --mode live --provi
 3. `src/paper_agent/prompts.py`：三个角色的职责边界和防幻觉规则。
 4. `src/paper_agent/providers.py`：如何把 Qwen 的兼容 API 适配到 Agents SDK。
 5. `src/paper_agent/agent_team.py`：如何把模型、指令、输出类型组成 Agent。
-6. `src/paper_agent/workflow.py`：并行与串行如何组合成完整工作流。
-7. `src/paper_agent/report.py`：把领域对象渲染成人能阅读的报告。
-8. `src/paper_agent/cli.py`：应用入口和依赖装配。
+6. `src/paper_agent/rag.py`：PDF、分块、Embedding 与向量索引。
+7. `src/paper_agent/context.py`：token 预算、去重与证据选择。
+8. `src/paper_agent/workflow.py`：并行、重试与 RAG 如何组合。
+9. `src/paper_agent/mcp_server.py`：可独立运行的 MCP Server。
+10. `src/paper_agent/feedback.py`：人工奖励和训练候选导出。
+11. `src/paper_agent/report.py`：Markdown/HTML/JSON 表现层。
+12. `src/paper_agent/cli.py`：应用入口和依赖装配。
 
 更完整的设计解释见 [架构说明](docs/architecture.md)，分阶段开发安排见 [学习路线](docs/learning-roadmap.md)，第一次学习请直接按 [逐步学习手册](docs/study-guide.md) 操作。
 
-## 5. 测试
+新增升级说明见 [RAG、上下文、MCP 与反馈学习手册](docs/internship-upgrade.md)。
+
+## 8. 测试
 
 ```powershell
 pytest
@@ -108,6 +178,9 @@ pytest
 
 ## 目前边界
 
-- v0.1 只使用 arXiv 元数据与摘要，尚未下载和解析 PDF。
-- 尚未做向量数据库、长期记忆、人工审批、引用页码定位和自动评测。
+- 本地索引适合教学与作品集，不是大规模生产向量数据库。
+- PDF 文本提取不包含 OCR，扫描件可能回退到摘要。
+- 当前 token 数为字符近似值，不是特定模型 tokenizer 的精确计数。
+- 当前有检索式证据上下文，但没有跨用户长期记忆。
+- Agentic-RL 模块完成轨迹与奖励闭环，尚未生成偏好对或执行训练。
 - 创新点是“候选研究假设”，不是已验证的新颖性结论；真正的新颖性仍需更广泛检索和领域专家审核。

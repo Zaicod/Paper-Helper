@@ -1,0 +1,12 @@
+{
+  "trajectory_count": 5,
+  "sft_candidate_count": 5,
+  "preference_pair_count": 0,
+  "grpo_eligible_group_count": 0,
+  "reward_source": "human scores; evaluator scores are diagnostic only",
+  "limitations": [
+    "每个 prompt 目前只有一个 completion，不能直接用于 DPO 或 GRPO。",
+    "需要为同一 prompt 采样多个候选并进行人工偏好/奖励标注。",
+    "当前模块完成轨迹与奖励数据闭环，不代表已经训练模型。"
+  ]
+}

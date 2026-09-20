@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
+
 from agents import Agent, Model, ModelSettings, Runner
 
 from paper_agent.models import (
+    ContextPacket,
     FieldSynthesis,
     IdeaPortfolio,
     Paper,
     PaperAnalysis,
 )
+from paper_agent.context import render_context
 from paper_agent.prompts import (
     ANALYST_INSTRUCTIONS,
     IDEATOR_INSTRUCTIONS,
@@ -48,12 +52,30 @@ class AgentResearchTeam:
             output_type=IdeaPortfolio,
         )
 
-    async def analyze_paper(self, paper: Paper) -> PaperAnalysis:
+    async def analyze_paper(
+        self, paper: Paper, context: ContextPacket | None = None
+    ) -> PaperAnalysis:
+        payload = "请分析以下论文元数据与摘要：\n" + paper.model_dump_json(indent=2)
+        if context is not None:
+            payload += (
+                "\n\n以下是检索得到的论文证据。引用结论时在 citations 中填写 chunk_id：\n"
+                + render_context(context)
+            )
         result = await Runner.run(
             self.analyst,
-            "请分析以下论文元数据与摘要：\n" + paper.model_dump_json(indent=2),
+            payload,
         )
-        return result.final_output
+        analysis = result.final_output
+        if context is not None:
+            allowed = {chunk.chunk_id for chunk in context.chunks}
+            normalized = _normalize_citations(analysis.citations, allowed)
+            notes = list(analysis.evidence_notes)
+            if context.chunks and not normalized:
+                notes.append("引用校验：模型未返回有效 chunk_id，引用已被过滤。")
+            analysis = analysis.model_copy(
+                update={"citations": normalized, "evidence_notes": notes}
+            )
+        return analysis
 
     async def synthesize(
         self, topic: str, analyses: list[PaperAnalysis]
@@ -83,6 +105,20 @@ class AgentResearchTeam:
 
 
 def _json(value: object) -> str:
-    import json
-
     return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def _normalize_citations(citations: list[str], allowed: set[str]) -> list[str]:
+    normalized: list[str] = []
+    for value in citations:
+        candidate = value.strip()
+        if candidate not in allowed:
+            try:
+                parsed = json.loads(candidate)
+            except (json.JSONDecodeError, TypeError):
+                parsed = None
+            if isinstance(parsed, dict):
+                candidate = str(parsed.get("chunk_id", ""))
+        if candidate in allowed and candidate not in normalized:
+            normalized.append(candidate)
+    return normalized
