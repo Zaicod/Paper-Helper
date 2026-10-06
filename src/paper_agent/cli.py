@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="demo 完全离线；live 使用 arXiv 与所选模型 API",
     )
     run_parser.add_argument(
+        "--engine",
+        choices=("legacy", "langgraph"),
+        default="legacy",
+        help="legacy 使用原 Python 工作流；langgraph 运行第一阶段离线学习图",
+    )
+    run_parser.add_argument(
         "--rag",
         choices=("none", "abstract", "pdf"),
         default="none",
@@ -93,6 +99,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def run_command(args: argparse.Namespace) -> tuple[Path, Path, Path]:
+    if args.engine == "langgraph":
+        if args.mode != "demo" or args.rag != "none":
+            raise SystemExit("LangGraph 第一阶段只支持 --mode demo --rag none。")
+
+        from paper_agent.langgraph_workflow import run_fixture_research_graph
+
+        state = await run_fixture_research_graph(
+            topic=args.topic,
+            limit=args.limit,
+            category=args.category,
+        )
+        return save_report(state["report"], args.output_dir)
+
     evidence = None
     if args.mode == "demo":
         search = FixtureSearchClient()

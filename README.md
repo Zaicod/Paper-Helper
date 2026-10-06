@@ -42,6 +42,94 @@ paper-agent run --topic "retrieval augmented generation" --mode demo
 
 演示模式使用内置的三篇示例论文和规则化假数据。它用于理解控制流，不代表真实的论文分析质量。结果会写入 `outputs/`。
 
+### LangGraph 第一阶段学习图
+
+在不影响原工作流的前提下，项目提供 Fixture 驱动的最小 LangGraph：
+
+```powershell
+paper-agent run --engine langgraph --mode demo --topic "RAG" --limit 2
+pytest tests/test_langgraph_workflow.py -v
+```
+
+当前图执行 `START → search → analyze → synthesize → ideate → render → END`；Fixture 入口仍不访问网络或模型，Web 入口可注入个人模型路由。
+逐步讲解和练习见 [LangGraph 第一阶段学习手册](docs/langgraph-phase1.md)。
+
+### Web UI 与实时任务进度
+
+项目吸收 `MultiAgent-Search` 的 FastAPI、后台任务和 WebSocket 思路，为论文工作流增加了
+会话隔离的浏览器入口：
+
+```powershell
+python -m pip install -e ".[dev,web]"
+paper-agent-web --host 127.0.0.1 --port 8000
+```
+
+打开 `http://127.0.0.1:8000`，即可观察 `search → analyze → synthesize → ideate → render → persist`
+各节点的实时事件，并下载任务独立目录中的 Markdown、JSON、HTML。设计取舍与安全分析见
+[MultiAgent-Search 融合记录](docs/multiagent-search-integration.md)。
+
+前端使用 React 19、TypeScript、Vite 和 Lucide Icons，提供响应式研究仪表盘、LangGraph
+节点状态、WebSocket 实时事件、研究产物下载及论文资料库。日常只运行 FastAPI 即可使用已
+构建的前端；修改前端源码时使用：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+# 提交前把生产静态文件构建进 Python 包
+npm run build
+```
+
+开发服务器为 `http://127.0.0.1:5173`，会把 `/api` 和 `/ws` 代理到 8000 端口。组件、状态、
+构建和练习说明见 [前端学习手册](docs/frontend-guide.md)。
+
+收藏夹现在同时承担“研究分类”和“知识工作区”的职责：研究任务可从收藏夹中多选论文，
+每篇论文有独立笔记，收藏夹有整体归纳笔记，并记录论文加入日期。思维导图 Agent 支持按
+加入日期、所选论文和研究方向生成结构化图谱；配置 `DASHSCOPE_API_KEY` 时调用 Qwen，
+未配置时使用确定性的 Fixture Agent。数据流和练习见
+[收藏夹研究工作区学习手册](docs/collection-research-workspace.md)。
+
+点击右上角用户头像可进入个人模型设置。每个用户分别保存 Provider、加密 API Key 与四个
+Agent 的模型路由；文献分析员、总结员、构思员和思维导图 Agent 可以使用不同模型。系统
+提供额度优先、均衡和质量优先三种起始方案，并允许直接填写 Provider 支持的其他模型 ID。
+安全边界和运行时装配见 [个人模型路由学习手册](docs/personal-model-routing.md)。
+
+左侧导航使用 React Router 拆成四个独立页面：研究工作台 `/`、论文资料库 `/library`、
+研究任务 `/tasks`、收藏夹 `/collections`。FastAPI 为这些入口提供 SPA 回退，因此复制链接
+或刷新子页面不会返回 404。
+
+网页中的“关键词论文检索”会调用真实 arXiv/OpenAlex 搜索接口。选择已有分类或输入新的分类
+名称后，点击“下载并归类”，服务端会校验 PDF、保存到 `outputs/library/pdfs/`，并把论文元
+数据、下载记录和 Collection 关系写入 SQLite/MySQL。搜索结果同时提供论文原文页和公开 PDF
+源链接；入库后提供由本服务托管的稳定下载链接。
+
+Web 研究结果会自动进入论文资料库。默认使用 `outputs/paper_library.db`，无需额外服务；
+若要切换 MySQL：
+
+```powershell
+python -m pip install -e ".[dev,web,mysql]"
+$env:PAPER_AGENT_DATABASE_URL="mysql+pymysql://paper_agent:密码@127.0.0.1:3306/paper_agent?charset=utf8mb4"
+paper-agent-web
+```
+
+表结构、收藏夹/标签 API 和数据库设计练习见
+[MySQL 论文资料库学习手册](docs/mysql-paper-library.md)。
+
+### 登录注册与 Redis 会话
+
+用户账号保存在 SQLite/MySQL 的 `users` 表，密码使用带随机盐的 scrypt 哈希；登录会话以随机
+令牌保存在 Redis，浏览器只接收 `HttpOnly + SameSite=Lax` Cookie。启动本地 Redis：
+
+```powershell
+docker compose -f docker-compose.redis.yml up -d
+docker exec paperflow-redis redis-cli ping
+paper-agent-web --host 127.0.0.1 --port 8000
+```
+
+默认会话有效期为 7 天，并在访问时刷新 TTL。Web 服务重启不会清除登录；主动退出会立即删除
+Redis 中的会话。Redis 地址、TTL 和 HTTPS Cookie 配置见 `.env.example`，完整数据流与安全
+设计见 [Redis 登录学习手册](docs/auth-redis.md)。
+
 ## 2. 使用 Qwen 新人免费额度运行真实版本
 
 先在阿里云百炼华北2（北京）地域开通服务、领取新人额度并创建“通用 API Key”。然后执行：
@@ -163,6 +251,11 @@ paper-agent-feedback --results-dir evals/results --output-dir training/data
 10. `src/paper_agent/feedback.py`：人工奖励和训练候选导出。
 11. `src/paper_agent/report.py`：Markdown/HTML/JSON 表现层。
 12. `src/paper_agent/cli.py`：应用入口和依赖装配。
+13. `frontend/src/App.tsx`：React 页面、交互状态和工作流可视化。
+14. `frontend/src/api.ts`：REST API 与 WebSocket 边界。
+15. `src/paper_agent/mindmap.py`：Fixture/Qwen 思维导图 Agent 与结构化输出。
+16. `src/paper_agent/storage.py`：收藏夹、加入日期、两层笔记和思维导图持久化。
+17. `src/paper_agent/model_settings.py`：个人密钥加密、推荐方案与运行时模型解析。
 
 更完整的设计解释见 [架构说明](docs/architecture.md)，分阶段开发安排见 [学习路线](docs/learning-roadmap.md)，第一次学习请直接按 [逐步学习手册](docs/study-guide.md) 操作。
 

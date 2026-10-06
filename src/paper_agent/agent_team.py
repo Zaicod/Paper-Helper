@@ -29,26 +29,29 @@ class AgentResearchTeam:
         synthesis_model: str | Model,
         ideator_model: str | Model,
         model_settings: ModelSettings | None = None,
+        analyst_settings: ModelSettings | None = None,
+        synthesis_settings: ModelSettings | None = None,
+        ideator_settings: ModelSettings | None = None,
     ) -> None:
         self.analyst = Agent(
             name="文献分析员",
             instructions=ANALYST_INSTRUCTIONS,
             model=analyst_model,
-            model_settings=model_settings,
+            model_settings=analyst_settings or model_settings,
             output_type=PaperAnalysis,
         )
         self.synthesizer = Agent(
             name="文献总结员",
             instructions=SYNTHESIZER_INSTRUCTIONS,
             model=synthesis_model,
-            model_settings=model_settings,
+            model_settings=synthesis_settings or model_settings,
             output_type=FieldSynthesis,
         )
         self.ideator = Agent(
             name="研究构思员",
             instructions=IDEATOR_INSTRUCTIONS,
             model=ideator_model,
-            model_settings=model_settings,
+            model_settings=ideator_settings or model_settings,
             output_type=IdeaPortfolio,
         )
 

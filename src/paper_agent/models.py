@@ -118,3 +118,28 @@ class ResearchReport(BaseModel):
     idea_portfolio: IdeaPortfolio
     analysis_failures: list[AnalysisFailure] = Field(default_factory=list)
     context_audits: list[ContextAudit] = Field(default_factory=list)
+
+
+class MindMapNode(BaseModel):
+    """One auditable concept in a paper-derived mind map."""
+
+    id: str
+    label: str
+    summary: str = ""
+    level: int = Field(default=0, ge=0, le=4)
+    paper_ids: list[str] = Field(default_factory=list)
+
+
+class MindMapEdge(BaseModel):
+    source: str
+    target: str
+    relationship: str = "包含"
+
+
+class MindMapDraft(BaseModel):
+    """Structured output contract shared by fixture and live agents."""
+
+    title: str
+    overview: str
+    nodes: list[MindMapNode]
+    edges: list[MindMapEdge]

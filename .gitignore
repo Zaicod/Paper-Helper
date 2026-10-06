@@ -5,3 +5,10 @@ __pycache__/
 *.egg-info/
 .env
 outputs/
+output/
+tmp/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
