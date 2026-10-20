@@ -1,0 +1,1 @@
+<template><section class="empty-state"><span class="eyebrow">404</span><h1>这个页面不存在</h1><p class="muted">可以回到资料库，继续你的阅读。</p><RouterLink class="button primary" to="/collections">返回资料库</RouterLink></section></template>

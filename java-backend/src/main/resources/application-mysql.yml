@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${PAPERFLOW_DB_URL}
+    username: ${PAPERFLOW_DB_USERNAME}
+    password: ${PAPERFLOW_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${PAPERFLOW_REDIS_HOST:127.0.0.1}
+      port: ${PAPERFLOW_REDIS_PORT:6379}
+      password: ${PAPERFLOW_REDIS_PASSWORD:}
+      connect-timeout: 3s
+      timeout: 3s

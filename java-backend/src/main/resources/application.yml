@@ -1,0 +1,35 @@
+server:
+  port: ${PAPERFLOW_PORT:8080}
+  servlet:
+    session:
+      timeout: 7d
+      cookie:
+        name: paperflow_java_session
+        http-only: true
+        same-site: lax
+        secure: ${PAPERFLOW_COOKIE_SECURE:false}
+spring:
+  application:
+    name: paperflow-business
+  profiles:
+    default: local
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  flyway:
+    enabled: true
+    clean-disabled: true
+  data:
+    redis:
+      repositories:
+        enabled: false
+server.error.include-message: never
+server.error.include-stacktrace: never
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+paperflow:
+  worker:
+    base-url: ${PAPERFLOW_WORKER_URL:}
+    token: ${PAPERFLOW_SERVICE_TOKEN:}
+    request-timeout-seconds: ${PAPERFLOW_WORKER_REQUEST_TIMEOUT:5}
+    task-timeout-seconds: ${PAPERFLOW_TASK_TIMEOUT:1800}
