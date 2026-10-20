@@ -30,14 +30,20 @@ public class ResearchTaskServiceImpl implements ResearchTaskService {
     private final WorkerClient worker;
     private final long timeout;
     private final cn.paperflow.service.ModelSettingsService settings;
+    private final cn.paperflow.service.UserRateLimitService limits;
     public ResearchTaskServiceImpl(ResearchTaskMapper tasks, LibraryService library, ObjectMapper json,
         WorkerClient worker, @Value("${paperflow.worker.task-timeout-seconds:1800}") long timeout) {
         this(tasks,library,json,worker,timeout,null);
     }
-    @org.springframework.beans.factory.annotation.Autowired
     public ResearchTaskServiceImpl(ResearchTaskMapper tasks, LibraryService library, ObjectMapper json,
         WorkerClient worker, @Value("${paperflow.worker.task-timeout-seconds:1800}") long timeout,cn.paperflow.service.ModelSettingsService settings) {
-        this.tasks=tasks; this.library=library; this.json=json; this.worker=worker; this.timeout=Math.max(1,timeout);this.settings=settings;
+        this(tasks,library,json,worker,timeout,settings,null);
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public ResearchTaskServiceImpl(ResearchTaskMapper tasks, LibraryService library, ObjectMapper json,
+        WorkerClient worker,@Value("${paperflow.worker.task-timeout-seconds:1800}") long timeout,
+        cn.paperflow.service.ModelSettingsService settings,cn.paperflow.service.UserRateLimitService limits) {
+        this.tasks=tasks; this.library=library; this.json=json; this.worker=worker; this.timeout=Math.max(1,timeout);this.settings=settings;this.limits=limits;
     }
     @Transactional
     public ResearchTaskVO submit(long owner, ResearchTaskDTO input) {
@@ -101,6 +107,7 @@ public class ResearchTaskServiceImpl implements ResearchTaskService {
         String payloadJson=encode(payload);
         if(payloadJson.getBytes(StandardCharsets.UTF_8).length>2*1024*1024)
             throw new ApiException(HttpStatus.BAD_REQUEST,"任务资料超过 2 MiB，请缩短笔记或减少所选论文后重试");
+        if(limits!=null) limits.generation(owner);
         ResearchTask task=new ResearchTask();
         task.setTaskId(UUID.randomUUID().toString()); task.setOwnerId(owner); task.setIdempotencyKey(input.idempotencyKey());
         task.setRequestHash(hash); task.setTopic(input.topic()); task.setPayloadJson(payloadJson);
@@ -150,6 +157,7 @@ public class ResearchTaskServiceImpl implements ResearchTaskService {
         if(payloadJson.getBytes(StandardCharsets.UTF_8).length>2*1024*1024)
             throw new ApiException(HttpStatus.BAD_REQUEST,"任务资料超过 2 MiB，请缩短笔记或减少所选论文后重试");
         ResearchTask task=new ResearchTask();
+        if(limits!=null) limits.generation(owner);
         task.setTaskId(UUID.randomUUID().toString());task.setOwnerId(owner);task.setIdempotencyKey(input.idempotencyKey());
         task.setRequestHash(requestHash);task.setTopic(original.getTopic());task.setPayloadJson(payloadJson);
         task.setStatus("queued");task.setEventsJson("[]");

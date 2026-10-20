@@ -16,6 +16,7 @@
 | Chroma RAG | 本地多语言模型生成向量，ChromaDB 持久化论文片段，按账号、论文和正文版本限定检索 |
 | 任务管理 | 进行中、未完成、历史研究三个列表，支持主题搜索、每页 10 条分页、阶段记录和失败任务重试 |
 | 个人模型设置 | 按账号配置 Qwen / OpenAI 密钥与默认模型，支持连接测试和删除密钥 |
+| Redis 加速与限流 | 可选启用论文搜索缓存和按用户的搜索/研究任务限流，Redis 故障时回到原业务链路 |
 | 离线演示 | 使用内置资料体验研究链路，无需大模型 API Key；真实论文搜索仍需网络 |
 
 ## 系统架构
@@ -46,6 +47,7 @@ flowchart LR
 | 前端 | Vue 3、TypeScript、Vite、Vue Router、Pinia |
 | Java 后端 | Java 21 编译目标、Spring Boot 3、Spring Security、MyBatis、Flyway |
 | 业务数据库 | 本地默认 H2；提供 MySQL 配置 |
+| 缓存与限流 | Redis、Spring Data Redis、Lua 原子计数；MySQL 模式支持 Redis Session |
 | Agent 执行端 | Python 3.11+、FastAPI、Pydantic、OpenAI Agents SDK |
 | RAG | ChromaDB、ONNX Runtime、本地 multilingual-e5-small 多语言向量模型 |
 | 文档处理 | pypdf、python-docx |
@@ -146,5 +148,6 @@ npm run build
 - [论文检索与收藏管理](docs/paper-search-learning.md) · [学习报告](docs/study-report-learning.md)
 - [Chroma RAG](docs/chroma-rag-learning.md) · [个人模型设置](docs/model-settings-learning.md)
 - [研究历史与分页](docs/research-history-learning.md)
+- [Redis 缓存、限流与启动配置](docs/redis-learning.md)
 
 项目以学习与本地运行场景为主。生成的研究分析和学习体会应结合原论文核对；API Key、内部 Token、本地数据库及生成报告不应提交到仓库。

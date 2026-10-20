@@ -22,12 +22,25 @@ spring:
     redis:
       repositories:
         enabled: false
+      host: ${PAPERFLOW_REDIS_HOST:127.0.0.1}
+      port: ${PAPERFLOW_REDIS_PORT:6379}
+      password: ${PAPERFLOW_REDIS_PASSWORD:}
+      connect-timeout: 300ms
+      timeout: 300ms
 server.error.include-message: never
 server.error.include-stacktrace: never
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
 paperflow:
+  redis:
+    enabled: ${PAPERFLOW_REDIS_ENABLED:false}
+    search-ttl-seconds: ${PAPERFLOW_REDIS_SEARCH_TTL:600}
+    empty-ttl-seconds: ${PAPERFLOW_REDIS_EMPTY_TTL:30}
+    degraded-ttl-seconds: ${PAPERFLOW_REDIS_DEGRADED_TTL:60}
+    search-limit: ${PAPERFLOW_REDIS_SEARCH_LIMIT:30}
+    generation-limit: ${PAPERFLOW_REDIS_GENERATION_LIMIT:5}
+    window-seconds: ${PAPERFLOW_REDIS_WINDOW_SECONDS:60}
   worker:
     base-url: ${PAPERFLOW_WORKER_URL:}
     token: ${PAPERFLOW_SERVICE_TOKEN:}
