@@ -148,6 +148,7 @@ npm run build
 - [论文检索与收藏管理](docs/paper-search-learning.md) · [学习报告](docs/study-report-learning.md)
 - [Chroma RAG](docs/chroma-rag-learning.md) · [个人模型设置](docs/model-settings-learning.md)
 - [研究历史与分页](docs/research-history-learning.md)
+- [任务调度可靠性与 Java 并发学习](docs/task-scheduling-learning.md)
 - [Redis 缓存、限流与启动配置](docs/redis-learning.md)
 
 项目以学习与本地运行场景为主。生成的研究分析和学习体会应结合原论文核对；API Key、内部 Token、本地数据库及生成报告不应提交到仓库。

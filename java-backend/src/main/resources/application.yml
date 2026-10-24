@@ -45,4 +45,5 @@ paperflow:
     base-url: ${PAPERFLOW_WORKER_URL:}
     token: ${PAPERFLOW_SERVICE_TOKEN:}
     request-timeout-seconds: ${PAPERFLOW_WORKER_REQUEST_TIMEOUT:5}
+    sync-concurrency: ${PAPERFLOW_WORKER_SYNC_CONCURRENCY:4}
     task-timeout-seconds: ${PAPERFLOW_TASK_TIMEOUT:1800}

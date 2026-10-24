@@ -26,7 +26,9 @@ class PersonalDispatchTest {
   when(store.pending()).thenReturn(List.of(new ResearchTaskStore.Pending("one","queued","durable",Instant.now().plusSeconds(60),7),new ResearchTaskStore.Pending("two","running","durable",Instant.now().plusSeconds(60),7)));
   when(settings.dispatchPayload(7,"durable")).thenThrow(new ModelSettingsService.MissingCredentials());
   when(worker.exchange("one","running","durable")).thenThrow(new WorkerClient.LostExecution());
-  new ResearchSynchronizer(store,worker,false,settings).tick();
+  try (var synchronizer=new ResearchSynchronizer(store,worker,false,settings)) {
+   synchronizer.tick().get(5,java.util.concurrent.TimeUnit.SECONDS);
+  }
   verify(store).problem("one","model_credentials_missing");verify(worker,never()).exchange("one","queued","durable");verify(worker).exchange("two","running","durable");
  }
  @Test void deletedKeyAfterLostPostAcknowledgementKeepsRemoteExecution() throws Exception {
@@ -34,7 +36,9 @@ class PersonalDispatchTest {
   when(store.pending()).thenReturn(List.of(new ResearchTaskStore.Pending("one","queued","durable",Instant.now().plusSeconds(60),7)));
   when(settings.dispatchPayload(7,"durable")).thenThrow(new ModelSettingsService.MissingCredentials());
   var snapshot=new ObjectMapper().readTree("{\"status\":\"running\"}");when(worker.exchange("one","running","durable")).thenReturn(snapshot);
-  new ResearchSynchronizer(store,worker,false,settings).tick();
+  try (var synchronizer=new ResearchSynchronizer(store,worker,false,settings)) {
+   synchronizer.tick().get(5,java.util.concurrent.TimeUnit.SECONDS);
+  }
   verify(store).apply("one",snapshot);verify(store,never()).problem(any(),any());verify(worker,never()).exchange("one","queued","durable");
  }
 }

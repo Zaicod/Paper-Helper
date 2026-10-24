@@ -13,7 +13,6 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.io.IOException;
@@ -296,7 +295,20 @@ class ResearchApiTest {
         mvc.perform(get("/api/research/tasks/{id}", id).session(a)).andExpect(jsonPath("$.data.status").value("interrupted"))
             .andExpect(jsonPath("$.data.error_code").value("sync_deadline_exceeded"));
     }
-    private void tick() { ReflectionTestUtils.invokeMethod(context.getBean("researchSynchronizer"), "tick"); }
+    private void tick() throws Exception {
+        // Await one persisted update for each task present at the start, across bounded batches.
+        var versions = new HashMap<String,Long>();
+        jdbc.query("select task_id,version from pf_research_tasks where status in ('queued','running')",
+            (org.springframework.jdbc.core.RowCallbackHandler) row -> versions.put(row.getString(1),row.getLong(2)));
+        long deadline = System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        var synchronizer = context.getBean(cn.paperflow.task.ResearchSynchronizer.class);
+        while (!versions.isEmpty()) {
+            synchronizer.tick().get(5,java.util.concurrent.TimeUnit.SECONDS);
+            versions.entrySet().removeIf(entry -> jdbc.queryForObject(
+                "select version from pf_research_tasks where task_id=?",Long.class,entry.getKey()) > entry.getValue());
+            assertThat(System.nanoTime()).as("all initial tasks must receive a synchronization update").isLessThan(deadline);
+        }
+    }
     private HashMap<String,Object> input() {
         return new HashMap<>(Map.of("idempotency_key", UUID.randomUUID().toString(), "topic", "Agent", "mode", "demo", "limit", 2));
     }
