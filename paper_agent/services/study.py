@@ -54,6 +54,8 @@ class StudyService:
             try:
                 phase = 'index'
                 recipe = 'study-public-pdf-chars4000-overlap400-e5-token500-v1'
+                version_recipe=getattr(self.loader,'recipe_for',None)
+                if version_recipe:recipe+=':'+version_recipe(paper)
                 cached = persistent and not self.options.rebuild_index and await index.load_paper(paper, 'pdf', recipe)
                 if not cached:
                     phase = 'pdf'
@@ -90,7 +92,7 @@ class StudyService:
             await emit('analyze', 'started', 'Agent 正在解释方法模块与实验结果。', paper.paper_id)
             try:
                 async with asyncio.timeout(180):
-                    goal_context = learning_goal + ('\n收藏夹整体笔记：' + collection_note if collection_note else '')
+                    goal_context = (learning_goal if learning_goal.strip() else topic) + ('\n收藏夹整体笔记：' + collection_note if collection_note else '')
                     value = await team.analyze(paper, packet.chunks, goal_context,
                         notes.get(paper.paper_id, ''), reflection)
                 item = StudyAnalysis.model_validate(value)

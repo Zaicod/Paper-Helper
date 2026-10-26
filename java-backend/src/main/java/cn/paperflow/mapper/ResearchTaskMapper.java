@@ -6,6 +6,9 @@ import java.util.List;
 
 @Mapper
 public interface ResearchTaskMapper {
+    record OwnedPaperLocation(long collectionId,long paperId){}
+    @Select("SELECT c.id AS collection_id,p.id AS paper_id FROM pf_collections c JOIN pf_collection_papers cp ON cp.collection_id=c.id JOIN pf_papers p ON p.id=cp.paper_id WHERE c.owner_id=#{owner} AND p.source=#{source} AND p.external_id=#{paperId} ORDER BY c.id LIMIT 1")
+    OwnedPaperLocation findOwnedPaperLocation(@Param("owner") long owner,@Param("source") String source,@Param("paperId") String paperId);
     @Select("SELECT id FROM pf_users WHERE id=#{owner} FOR UPDATE")
     Long lockOwner(long owner);
     @Select("SELECT * FROM pf_research_tasks WHERE owner_id=#{owner} AND idempotency_key=#{key}")

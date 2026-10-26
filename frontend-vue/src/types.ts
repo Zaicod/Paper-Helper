@@ -15,11 +15,11 @@ export interface CollectionDetail extends Collection { overall_note: string; pap
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'
 export type TaskCategory = 'active' | 'unfinished' | 'history'
 export interface TaskInput {
-  task_type?: 'research' | 'study_report'; learning_goal?: string; reflection?: string;
+  task_type?: 'research' | 'study_report' | 'search' | 'citation_trace'; learning_goal?: string; reflection?: string; citation_direction?: CitationDirection;
   idempotency_key: string; topic: string; mode: 'demo' | 'live'; limit: number; rag: 'none' | 'abstract';
   provider?: 'qwen' | 'openai'; model?: string; collection_id?: number; paper_ids?: number[]
 }
-export interface TaskSummary { task_id: string; topic: string; task_type?: 'research' | 'study_report'; status: TaskStatus; created_at: string; updated_at: string }
+export interface TaskSummary { task_id: string; topic: string; task_type?: 'research' | 'study_report' | 'search' | 'citation_trace'; status: TaskStatus; created_at: string; updated_at: string }
 export interface StageEvent { stage: string; status: string; paper_id: string | null; message: string; timestamp: string }
 export interface Analysis {
   paper_id: string; title: string; research_problem: string; innovation_points: string[]; methods: string[];
@@ -44,9 +44,37 @@ export interface StudyReport {
     citations: { chunk_id: string; page_number: number | null; source_url: string }[] }[];
   synthesis: string[]; learning_plan: string[]; evidence_mode: 'pdf'; mode: 'live' | 'demo'
 }
-export interface Task extends TaskSummary { events: StageEvent[]; report: Report | StudyReport | null; error_code: string | null; error_message: string | null; sync_error: string | null }
+export interface SearchReport {
+  report_type: 'search_report'; topic: string; generated_at: string; rounds: 1 | 2;
+  plan: { summary: string; concepts: string[]; entities: { name: string; aliases: string[] }[];
+    entity_relation: 'any' | 'all'; constraints: string[];
+    queries: { source: Exclude<PaperSource, 'auto'>; keywords: SearchKeyword[]; purpose: string }[] };
+  results: { candidate_id: string; paper: PaperInput; relevance: 'match' | 'uncertain' | 'background';
+    reason: string; evidence: string[]; matched_entities: string[]; modality: 'multimodal' | 'unimodal' | 'unknown';
+    provenance: { source: string; query: string }[] }[];
+  searches: { round: 1 | 2; source: string; query: string; count: number;
+    status: 'ok' | 'empty' | 'unavailable' | 'timeout' | 'rate_limited' }[];
+  warnings: string[]; gaps: string[];
+}
+export interface Task extends TaskSummary { events: StageEvent[]; report: Report | StudyReport | SearchReport | CitationReport | null; error_code: string | null; error_message: string | null; sync_error: string | null }
 export interface TaskPage { tasks: TaskSummary[]; total: number; page: number; size: number }
 
 export type ModelProvider = 'qwen' | 'openai'
 export interface ProviderSettings { provider: ModelProvider; model: string; configured: boolean; key_hint: string | null }
 export interface ModelSettings { default_provider: ModelProvider | null; providers: ProviderSettings[] }
+
+export interface PaperDocument {
+  document_id: string | null; status: 'not_prepared' | 'ready' | 'missing' | 'blocked' | 'unreadable' | 'timeout' | 'unavailable';
+  message: string; filename: string | null; sha256: string | null; source_kind: 'uploaded' | 'remote' | null;
+  page_count: number | null; prepared_at: string | null
+}
+
+export type CitationDirection = 'references' | 'citations' | 'both'
+export interface CitationReport {
+  report_type: 'citation_report'; topic: string; generated_at: string; direction: CitationDirection;
+  seeds: PaperInput[]; depth: 1; source_requests: number;
+  results: { candidate_id: string; paper: PaperInput; relevance: 'match' | 'uncertain' | 'background';
+    reason: string; evidence: string[]; paths: {seed_id: string; seed_title: string;
+      direction: 'references' | 'citations'; from_id: string; to_id: string}[] }[];
+  warnings: string[]; gaps: string[];
+}

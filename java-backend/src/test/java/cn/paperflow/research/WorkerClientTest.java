@@ -10,6 +10,20 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.*;
 
 class WorkerClientTest {
+    @Test void rejectsNullWorkerDocumentStatusAsIoFailureAndUsesBasenameForUpload() throws Exception {
+        var body=new java.util.concurrent.atomic.AtomicReference<String>("{\"status\":null,\"message\":\"bad\"}");
+        var filename=new java.util.concurrent.atomic.AtomicReference<String>();
+        var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/internal/v1/documents/prepare",x->{byte[] data=body.get().getBytes();x.sendResponseHeaders(200,data.length);try(var out=x.getResponseBody()){out.write(data);}});
+        server.createContext("/internal/v1/documents/upload",x->{filename.set(java.net.URLDecoder.decode(x.getRequestURI().getRawQuery(),java.nio.charset.StandardCharsets.UTF_8));byte[] data=("{\"upload_id\":\""+java.util.UUID.randomUUID()+"\"}").getBytes();x.sendResponseHeaders(200,data.length);try(var out=x.getResponseBody()){out.write(data);}});server.start();
+        try {
+            var client=new WorkerClient(new ObjectMapper(),"http://127.0.0.1:"+server.getAddress().getPort(),"test-token-with-at-least-32-characters",2);
+            assertThatThrownBy(()->client.prepareDocument("java-user:7",java.util.Map.of(),null)).isInstanceOf(IOException.class);
+            body.set("{\"status\":\"ready\",\"message\":\"ready\",\"document_id\":\""+java.util.UUID.randomUUID()+"\",\"sha256\":\""+"a".repeat(64)+"\",\"page_count\":1,\"filename\":\"paper.pdf\",\"prepared_at\":\"2026-10-24T00:00:00Z\"}");
+            assertThatThrownBy(()->client.prepareDocument("java-user:7",java.util.Map.of(),null)).isInstanceOf(IOException.class);
+            client.uploadDocument("java-user:7","C:\\private\\paper.pdf","%PDF-test".getBytes());assertThat(filename.get()).endsWith("filename=paper.pdf").doesNotContain("private");
+        }finally{server.stop(0);}
+    }
     @Test void acceptsStrictStudyCompletionAndRejectsMalformedModules() throws Exception {
         var json=new ObjectMapper();
         String id=java.util.UUID.randomUUID().toString();

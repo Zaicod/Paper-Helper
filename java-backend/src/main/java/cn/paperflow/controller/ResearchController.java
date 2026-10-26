@@ -31,6 +31,8 @@ public class ResearchController {
     public Result<ResearchTaskVO> detail(@AuthenticationPrincipal UserPrincipal user,@PathVariable String id) {
         return Result.success(service.detail(user.id(),id));
     }
+    @PostMapping("/{id}/repair") @ResponseStatus(HttpStatus.ACCEPTED)
+    public Result<ResearchTaskVO> repair(@AuthenticationPrincipal UserPrincipal user,@PathVariable String id,@Valid @RequestBody cn.paperflow.dto.RetryTaskDTO input){return Result.success(service.repair(user.id(),id,input));}
     @GetMapping("/{id}/document")
     public ResponseEntity<byte[]> document(@AuthenticationPrincipal UserPrincipal user,@PathVariable String id) {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))

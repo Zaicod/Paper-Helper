@@ -13,6 +13,7 @@ it('creates a live study report using only the papers selected from the collecti
   const paper = (id: number) => ({ id, source: 'arxiv', paper_id: `p${id}`, title: `论文 ${id}`, abstract: '摘要', authors: [], categories: [], page_url: 'https://arxiv.org/abs/1234.12345', note: '', added_at: '' })
   vi.spyOn(api.collections, 'list').mockResolvedValue({ collections: [{ id: 7, name: '阅读计划', description: '', paper_count: 2 }], total: 1, page: 0, size: 100 })
   vi.spyOn(api.collections, 'get').mockResolvedValue({ id: 7, name: '阅读计划', description: '', overall_note: '', paper_count: 2, papers: [paper(1), paper(2)] })
+  vi.spyOn(api.documents, 'get').mockResolvedValue({document_id:'c3e11f49-02c1-4a42-abca-72f7ebfbdb60',status:'ready',message:'已准备',filename:'paper.pdf',sha256:'hash',source_kind:'uploaded',page_count:3,prepared_at:''})
   const create = vi.spyOn(api.tasks, 'create').mockRejectedValue(new Error('暂时离线'))
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/research/new', component: ResearchNewView }, { path: '/research', component: { template: '<div />' } }] })
   await router.push('/research/new?task_type=study_report&collection_id=7&paper_ids=2')
@@ -56,5 +57,14 @@ it('selects at most twenty collection papers and clears the study selection', as
   expect(wrapper.findAll('input[type="checkbox"]')[20]!.attributes('disabled')).toBeDefined()
   await wrapper.get('[data-test="clear-study-papers"]').trigger('click')
   expect(wrapper.findAll('input[type="checkbox"]:checked')).toHaveLength(0)
+  wrapper.unmount()
+})
+
+it('only accepts exact private PDF UUID paths in report citations', () => {
+  const paths = ['/api/library/documents/c3e11f49-02c1-4a42-abca-72f7ebfbdb60/file', '/api/library/documents/../file', '/api/library/documents/c3e11f49-02c1-4a42-abca-72f7ebfbdb60/file?evil=1','//evil.test/file','/api/auth/me']
+  const report: StudyReport = {report_type:'study_report',topic:'学习',generated_at:'',papers:[],analyses:[{paper_id:'x',title:'x',overview:'',background:'',methods:[],innovations:[],results:[],reflection:[],citations:paths.map(source_url => ({source_url,chunk_id:'evidence',page_number:1}))}],synthesis:[],learning_plan:[],evidence_mode:'pdf',mode:'live'}
+  const wrapper = mount(StudyReportView,{props:{report,taskId:'test'}})
+  expect(wrapper.findAll('a[target="_blank"]')).toHaveLength(1)
+  expect(wrapper.get('a[target="_blank"]').attributes('href')).toBe(paths[0])
   wrapper.unmount()
 })

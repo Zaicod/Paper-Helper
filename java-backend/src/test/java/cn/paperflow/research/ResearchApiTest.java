@@ -69,6 +69,11 @@ class ResearchApiTest {
                 exchange.sendResponseHeaders(code, data.length);
                 try (var output = exchange.getResponseBody()) { output.write(data); }
             });
+            server.createContext("/internal/v1/documents/prepare", exchange -> {
+                assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer "+TOKEN);
+                var result=Map.of("document_id",UUID.randomUUID().toString(),"status","ready","message","Prepared controlled test PDF","filename","paper.pdf","sha256","a".repeat(64),"source_kind","remote","page_count",2,"prepared_at","2026-10-24T00:00:00Z");
+                byte[] data=wire.writeValueAsBytes(result);exchange.sendResponseHeaders(200,data.length);try(var out=exchange.getResponseBody()){out.write(data);}
+            });
             server.start(); return server;
         } catch (IOException exception) { throw new RuntimeException(exception); }
     }
@@ -133,6 +138,7 @@ class ResearchApiTest {
         body.put("paper_ids",List.of(paper)); body.put("learning_goal","Understand modules"); body.put("reflection","Need help with ablation");
         var demo=new HashMap<>(body);demo.put("mode","demo");submit(a,demo,400);
         var stranger=user();submit(stranger,body,404);
+        postJson(a,"/api/library/collections/"+collection+"/papers/"+paper+"/document/prepare",Map.of(),200);
         var created=submit(a,body,202); String id=created.path("task_id").asText();
         assertThat(created.path("task_type").asText()).isEqualTo("study_report");
         mvc.perform(delete("/api/library/collections/{id}",collection).session(a).with(csrf())).andExpect(status().isNoContent());
@@ -186,6 +192,7 @@ class ResearchApiTest {
             "source","manual","paper_id",UUID.randomUUID().toString(),"title","Paper without PDF",
             "abstract","Evidence","page_url","https://example.test/paper"),201).path("id").asLong();
         var body=input();body.put("task_type","study_report");body.put("mode","live");body.put("collection_id",collection);body.put("paper_ids",List.of(paper));
+        postJson(a,"/api/library/collections/"+collection+"/papers/"+paper+"/document/prepare",Map.of(),200);
         String study=submit(a,body,202).path("task_id").asText();
         String research=submit(a,input(),202).path("task_id").asText();
         remoteState="failed";remoteErrorCode="study_report_failed";

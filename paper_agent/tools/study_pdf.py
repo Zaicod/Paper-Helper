@@ -17,6 +17,12 @@ MAX_PAGES = 200
 MAX_TEXT_CHARS = 2_000_000
 
 
+class PDFDownloadError(ValueError):
+    def __init__(self,status):
+        super().__init__('PDF source did not return accessible content')
+        self.preparation_status='blocked' if status in (401,403) else 'unavailable'
+
+
 def _public_target(url: str) -> tuple[str, str, str]:
     parts = urlsplit(url)
     if (parts.scheme != 'https' or not parts.hostname or parts.username is not None
@@ -68,7 +74,7 @@ def _fetch_public_pdf(url: str) -> tuple[bytes, str]:
                 url = urljoin(url, location)
                 continue
             if response.status != 200:
-                raise ValueError('PDF download failed')
+                raise PDFDownloadError(response.status)
             length = response.getheader('Content-Length')
             if length and (not length.isdigit() or int(length) > MAX_PDF_BYTES):
                 raise ValueError('PDF exceeds download limit')

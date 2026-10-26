@@ -24,7 +24,11 @@ class ResearchTaskPayloadTest {
         when(worker.configured()).thenReturn(true);
         var papers=IntStream.rangeClosed(1,20).mapToObj(i->paper(i,"中".repeat(50000),"Evidence")).toList();
         when(library.detail(7,1)).thenReturn(new CollectionDetailVO(1,"Large notes","",20,"",papers,List.of(),List.of()));
-        var service=new ResearchTaskServiceImpl(mapper,library,new ObjectMapper(),worker,1800);
+        var documents=mock(cn.paperflow.service.PaperDocumentService.class);
+        when(documents.requireReady(eq(7L),eq(1L),anyList())).thenAnswer(invocation->{
+            Map<String,String> ready=new LinkedHashMap<>();for(PaperVO paper:invocation.<List<PaperVO>>getArgument(2)) ready.put(paper.paperId(),UUID.randomUUID().toString());return ready;
+        });
+        var service=new ResearchTaskServiceImpl(mapper,library,new ObjectMapper(),worker,1800,null,null,documents);
         var body=new ResearchTaskDTO(UUID.randomUUID().toString(),"Study","live",20,"abstract","qwen",null,1L,
             papers.stream().map(PaperVO::id).toList(),"study_report","","");
         assertThatThrownBy(()->service.submit(7,body)).isInstanceOfSatisfying(ApiException.class,error->{
@@ -38,7 +42,11 @@ class ResearchTaskPayloadTest {
         when(worker.configured()).thenReturn(true);
         when(library.detail(7,1)).thenReturn(new CollectionDetailVO(1,"Large paper","",1,"",
             List.of(paper(1,"","中".repeat(800000))),List.of(),List.of()));
-        var service=new ResearchTaskServiceImpl(mapper,library,new ObjectMapper(),worker,1800);
+        var documents=mock(cn.paperflow.service.PaperDocumentService.class);
+        when(documents.requireReady(eq(7L),eq(1L),anyList())).thenAnswer(invocation->{
+            Map<String,String> ready=new LinkedHashMap<>();for(PaperVO paper:invocation.<List<PaperVO>>getArgument(2)) ready.put(paper.paperId(),UUID.randomUUID().toString());return ready;
+        });
+        var service=new ResearchTaskServiceImpl(mapper,library,new ObjectMapper(),worker,1800,null,null,documents);
         var research=new ResearchTaskDTO(UUID.randomUUID().toString(),"Research","live",1,"abstract","qwen",null,1L,List.of(1L));
         assertThatThrownBy(()->service.submit(7,research)).isInstanceOf(ApiException.class);
         verify(mapper,never()).insert(any());

@@ -1,5 +1,5 @@
 import { request } from './http'
-import type { User, Collection, CollectionPage, CollectionDetail, Paper, PaperInput, PaperSource, PaperSort, PaperSearchResult, SearchKeyword, Task, TaskInput, TaskPage, TaskCategory, ModelProvider, ModelSettings } from '../types'
+import type { PaperDocument, User, Collection, CollectionPage, CollectionDetail, Paper, PaperInput, PaperSource, PaperSort, PaperSearchResult, SearchKeyword, Task, TaskInput, TaskPage, TaskCategory, ModelProvider, ModelSettings } from '../types'
 const collections = '/library/collections'
 const tasks = '/research/tasks'
 export const api = {
@@ -32,10 +32,19 @@ export const api = {
     removePaper: (id: number, paper: number) => request(`${collections}/${id}/papers/${paper}`, { method: 'DELETE' }),
     paperNote: (id: number, body: { source: string; paper_id: string; content: string }) => request<{ content: string }>(`${collections}/${id}/paper-note`, { method: 'PUT', body }),
   },
+  documents: {
+    get: (collection: number, paper: number) => request<PaperDocument>(`${collections}/${collection}/papers/${paper}/document`),
+    prepare: (collection: number, paper: number) => request<PaperDocument>(`${collections}/${collection}/papers/${paper}/document/prepare`, { method: 'POST', body: {}, timeoutMs: 180000 }),
+    upload: (collection: number, paper: number, file: File) => {
+      const body = new FormData(); body.append('file', file)
+      return request<PaperDocument>(`${collections}/${collection}/papers/${paper}/document`, { method: 'POST', body, timeoutMs: 180000 })
+    },
+  },
   tasks: {
     list: (page = 0, size = 10, category?: TaskCategory, keyword = '') => request<TaskPage>(`${tasks}?${new URLSearchParams({ page: String(page), size: String(size), ...(category ? { category } : {}), ...(keyword ? { keyword } : {}) })}`),
     get: (id: string) => request<Task>(`${tasks}/${encodeURIComponent(id)}`),
     create: (body: TaskInput) => request<Task>(tasks, { method: 'POST', body }),
+    repair: (id: string, body: { idempotency_key: string }) => request<Task>(`${tasks}/${encodeURIComponent(id)}/repair`, { method: 'POST', body }),
     retry: (id: string, body: { idempotency_key: string }) => request<Task>(`${tasks}/${encodeURIComponent(id)}/retry`, { method: 'POST', body }),
   },
 }

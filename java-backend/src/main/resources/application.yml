@@ -9,6 +9,10 @@ server:
         same-site: lax
         secure: ${PAPERFLOW_COOKIE_SECURE:false}
 spring:
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 26MB
   application:
     name: paperflow-business
   profiles:

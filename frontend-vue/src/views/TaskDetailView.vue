@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import type { Pinia } from 'pinia'
+import { getCurrentInstance } from 'vue'
 import { api } from '../api'
 import ReportView from '../components/ReportView.vue'
 import StudyReportView from '../components/StudyReportView.vue'
+import SearchReportView from '../components/SearchReportView.vue'
+import CitationReportView from '../components/CitationReportView.vue'
 import { createTaskPoller } from '../composables/polling'
 import { createSubmission } from '../composables/submission'
-import type { Task, TaskStatus, StudyReport, Report } from '../types'
+import type { Task, TaskStatus, StudyReport, SearchReport, CitationReport, Report } from '../types'
 
+const pinia = getCurrentInstance()?.appContext.config.globalProperties.$pinia as Pinia | undefined
+const owner = computed(() => pinia?.state.value.auth?.user?.id)
 const route = useRoute()
 const router = useRouter()
 const task = ref<Task | null>(null)
@@ -16,16 +22,20 @@ const loading = ref(false)
 const retrying = ref(false)
 const retryError = ref('')
 const retrySubmission = createSubmission()
+const repairSubmission = createSubmission()
 let retryGeneration = 0
 const statusLabel: Record<TaskStatus, string> = { queued: '等待执行', running: '正在研究', completed: '研究完成', failed: '执行失败', interrupted: '执行已中断' }
-function isStudyReport(report: Report | StudyReport): report is StudyReport { return 'report_type' in report && report.report_type === 'study_report' }
-const stageLabel: Record<string, string> = { fetch_pdf: '获取论文正文', study_analyze: '学习分析', study_synthesize: '整理学习总结', export_docx: '生成学习文档', search: '检索论文', index: '构建证据', analyze: '逐篇分析', synthesize: '综合研究', ideate: '生成构思' }
+function isStudyReport(report: Report | StudyReport | SearchReport | CitationReport): report is StudyReport { return 'report_type' in report && report.report_type === 'study_report' }
+function isSearchReport(report: Report | StudyReport | SearchReport | CitationReport): report is SearchReport { return 'report_type' in report && report.report_type === 'search_report' }
+function isCitationReport(report: Report | StudyReport | SearchReport | CitationReport): report is CitationReport { return 'report_type' in report && report.report_type === 'citation_report' }
+const stageLabel: Record<string, string> = { citation_trace: '追踪引用关系', citation_screen: '筛选相关论文', fetch_pdf: '获取论文正文', study_analyze: '学习分析', study_synthesize: '整理学习总结', export_docx: '生成学习文档', search: '检索论文', index: '构建证据', analyze: '逐篇分析', synthesize: '综合研究', ideate: '生成构思' }
 const eventLabel: Record<string, string> = { started: '开始', completed: '完成', failed: '失败' }
 const poller = createTaskPoller(id => api.tasks.get(id), value => { task.value = value; loading.value = false; error.value = '' }, cause => { loading.value = false; error.value = cause instanceof Error ? cause.message : '暂时无法同步任务，请重试。' })
 function refresh() { loading.value = true; error.value = ''; poller.start(String(route.params.id)) }
-watch(() => route.params.id, id => {
+watch([() => route.params.id, owner], ([id]) => {
   retryGeneration++
   retrySubmission.reset()
+  repairSubmission.reset()
   retrying.value = false
   retryError.value = ''
   task.value = null
@@ -33,16 +43,18 @@ watch(() => route.params.id, id => {
   else poller.stop()
 }, { immediate: true, flush: 'sync' })
 onBeforeUnmount(() => { retryGeneration++; poller.stop() })
-async function retryTask() {
+async function retryTask(repair = false) {
   if (retrying.value || !task.value || !['failed', 'interrupted'].includes(task.value.status)) return
+  if (repair && task.value.task_type !== 'study_report') return
+  const account = owner.value
   const id = String(route.params.id)
   const path = route.path
   const active = retryGeneration
-  const isCurrent = () => active === retryGeneration && path === route.path
+  const isCurrent = () => active === retryGeneration && path === route.path && account === owner.value
   retrying.value = true
   retryError.value = ''
   try {
-    const result = await api.tasks.retry(id, { idempotency_key: retrySubmission.keyFor({ task_id: id }) })
+    const result = await (repair ? api.tasks.repair : api.tasks.retry)(id, { idempotency_key: (repair ? repairSubmission : retrySubmission).keyFor({ task_id: id }) })
     if (isCurrent()) await router.push(`/research/${encodeURIComponent(result.task_id)}`)
   } catch (cause) {
     if (isCurrent()) retryError.value = cause instanceof Error ? cause.message : '暂未收到重试结果，请重试。再次点击会沿用同一个任务标识，避免重复执行。'
@@ -53,19 +65,20 @@ function time(value: string) { return new Date(value).toLocaleTimeString('zh-CN'
 
 <template>
   <section class="stack">
-    <div class="page-heading"><div><p class="eyebrow">RESEARCH RECORD / 研究记录</p><h1>{{ task?.topic ?? '读取研究任务' }}</h1><span v-if="task?.task_type === 'study_report'" class="tag">学习报告</span><p class="task-id muted">{{ route.params.id }}</p></div><RouterLink class="button secondary" :to="{ path: '/research', query: { category: route.query.category, keyword: route.query.keyword, page: route.query.page } }">返回任务</RouterLink></div>
+    <div class="page-heading"><div><p class="eyebrow">RESEARCH RECORD / 研究记录</p><h1>{{ task?.topic ?? '读取研究任务' }}</h1><span v-if="task?.task_type === 'citation_trace'" class="tag">引用追踪</span><span v-else-if="task?.task_type === 'search'" class="tag">智能搜索</span><span v-else-if="task?.task_type === 'study_report'" class="tag">学习报告</span><p class="task-id muted">{{ route.params.id }}</p></div><RouterLink class="button secondary" :to="{ path: '/research', query: { category: route.query.category, keyword: route.query.keyword, page: route.query.page } }">返回任务</RouterLink></div>
     <div v-if="error" class="notice error" role="alert">{{ error }} <button class="button secondary small" :disabled="loading" @click="refresh">重新同步</button></div>
     <p v-if="loading && !task" class="muted" role="status">正在读取研究记录…</p>
     <template v-if="task">
-      <div class="panel progress-panel"><div class="progress-title"><span class="status-dot" :data-status="task.status"></span><h2>{{ statusLabel[task.status] }}</h2><span class="muted">更新于 {{ new Date(task.updated_at).toLocaleString('zh-CN') }}</span></div><p v-if="task.status === 'queued' || task.status === 'running'" class="muted">研究过程会自动更新。你可以离开页面，稍后从任务列表继续查看。</p><p v-if="task.sync_error" class="notice" role="status">{{ task.sync_error }}</p><p v-if="task.error_message" class="notice error" role="alert">{{ task.error_message }}</p>
+      <div class="panel progress-panel"><div class="progress-title"><span class="status-dot" :data-status="task.status"></span><h2>{{ task.task_type === 'search' && task.status === 'running' ? '正在搜索' : task.task_type === 'search' && task.status === 'completed' ? '搜索完成' : statusLabel[task.status] }}</h2><span class="muted">更新于 {{ new Date(task.updated_at).toLocaleString('zh-CN') }}</span></div><p v-if="task.status === 'queued' || task.status === 'running'" class="muted">研究过程会自动更新。你可以离开页面，稍后从任务列表继续查看。</p><p v-if="task.sync_error" class="notice" role="status">{{ task.sync_error }}</p><p v-if="task.error_message" class="notice error" role="alert">{{ task.error_message }}</p>
         <div v-if="task.status === 'failed' || task.status === 'interrupted'" class="stack retry-panel">
-          <p class="muted">重试将沿用原任务的主题、论文和学习内容，使用当前默认模型配置创建新任务记录；原任务记录会保留。请先在 <RouterLink to="/settings">个人设置</RouterLink> 中检查配置。</p>
+          <p class="muted">原输入重试将沿用原快照中的主题、论文、正文版本和学习内容，使用当前默认模型配置创建新任务记录；原任务记录会保留。请先在 <RouterLink to="/settings">个人设置</RouterLink> 中检查配置。</p>
           <p v-if="retryError" data-test="retry-error" class="notice error" role="alert">{{ retryError }}</p>
-          <div class="actions"><button class="button primary" data-test="retry-task" :disabled="retrying" @click="retryTask">{{ retrying ? '正在重试…' : '重试任务' }}</button><RouterLink class="button secondary small" to="/research/new">创建新的研究任务</RouterLink></div>
+          <p v-if="task.task_type === 'study_report'" class="muted">补充正文后，请到收藏夹准备当前论文的 PDF，再选择“修复资料后重新创建”。新任务读取当前本人收藏资料、已准备正文和当前模型配置，保留原任务历史。</p>
+          <div class="actions"><button v-if="task.task_type === 'study_report'" class="button primary" data-test="repair-task" :disabled="retrying" @click="retryTask(true)">修复资料后重新创建</button><RouterLink v-if="task.task_type === 'study_report'" class="button secondary small" to="/collections">去收藏夹准备正文</RouterLink><button class="button secondary" data-test="retry-task" :disabled="retrying" @click="retryTask(false)">{{ retrying ? '正在重试…' : '原输入重试' }}</button><RouterLink class="button secondary small" to="/research/new">创建新的研究任务</RouterLink></div>
         </div>
         <ol v-if="task.events.length" class="timeline" aria-label="研究阶段记录"><li v-for="(event,index) in task.events" :key="`${index}-${event.timestamp}`" :data-status="event.status"><time :datetime="event.timestamp">{{ time(event.timestamp) }}</time><div><strong>{{ stageLabel[event.stage] ?? event.stage }}</strong><span class="event-label">{{ eventLabel[event.status] ?? event.status }}</span><p>{{ event.message }}</p><small v-if="event.paper_id" class="muted">论文 {{ event.paper_id }}</small></div></li></ol><p v-else class="muted">{{ task.status === 'failed' || task.status === 'interrupted' ? '本次执行未产生阶段记录，可修正配置后重试。' : '等待执行端返回阶段记录。' }}</p>
       </div>
-      <template v-if="task.report"><StudyReportView v-if="isStudyReport(task.report)" :report="task.report" :task-id="task.task_id" /><ReportView v-else :report="task.report" /></template>
+      <template v-if="task.report"><CitationReportView v-if="isCitationReport(task.report)" :key="task.task_id" :report="task.report" /><SearchReportView v-else-if="isSearchReport(task.report)" :key="task.task_id" :report="task.report" /><StudyReportView v-else-if="isStudyReport(task.report)" :report="task.report" :task-id="task.task_id" /><ReportView v-else :report="task.report" /></template>
     </template>
   </section>
 </template>

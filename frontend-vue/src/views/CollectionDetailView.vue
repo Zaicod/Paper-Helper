@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
+import PaperDocumentControl from '../components/PaperDocumentControl.vue'
 import type { CollectionDetail, Paper, PaperInput } from '../types'
 
 const route = useRoute()
@@ -14,6 +15,7 @@ const error = ref('')
 const success = ref('')
 const selectedStudyPapers = ref<number[]>([])
 function studyLink(ids: number[]) { return { path: '/research/new', query: { task_type: 'study_report', collection_id: id.value, paper_ids: ids.join(',') } } }
+function citationLink(ids: number[]) { return { path: '/research/new', query: { task_type: 'citation_trace', collection_id: id.value, paper_ids: ids.join(',') } } }
 const overallNote = ref('')
 const notes = reactive<Record<number, string>>({})
 const metadata = reactive({ name: '', description: '' })
@@ -237,7 +239,7 @@ watch(() => route.params.id, () => {
       <div class="detail-layout">
         <section class="stack papers-column" aria-labelledby="papers-heading">
           <div class="section-heading"><h2 id="papers-heading">论文与阅读笔记</h2><span class="muted">{{ collection.paper_count }} 篇</span></div>
-          <div v-if="collection.papers.length" class="panel actions"><span class="muted">勾选 1 至 20 篇生成学习报告 · 已选 {{ selectedStudyPapers.length }} 篇</span><button type="button" class="button secondary small" data-test="select-study-papers" @click="selectedStudyPapers = collection.papers.slice(0, 20).map(paper => paper.id)">{{ collection.papers.length > 20 ? '选择前 20 篇' : '全选' }}</button><button type="button" class="button secondary small" data-test="clear-study-papers" :disabled="!selectedStudyPapers.length" @click="selectedStudyPapers = []">清空选择</button><RouterLink v-if="selectedStudyPapers.length" class="button primary small" :to="studyLink(selectedStudyPapers)">生成所选论文学习报告</RouterLink><span v-else class="muted">请先勾选论文</span></div>
+          <div v-if="collection.papers.length" class="panel actions"><span class="muted">勾选 1 至 20 篇生成学习报告 · 已选 {{ selectedStudyPapers.length }} 篇</span><button type="button" class="button secondary small" data-test="select-study-papers" @click="selectedStudyPapers = collection.papers.slice(0, 20).map(paper => paper.id)">{{ collection.papers.length > 20 ? '选择前 20 篇' : '全选' }}</button><button type="button" class="button secondary small" data-test="clear-study-papers" :disabled="!selectedStudyPapers.length" @click="selectedStudyPapers = []">清空选择</button><RouterLink v-if="selectedStudyPapers.length" class="button primary small" :to="studyLink(selectedStudyPapers)">生成所选论文学习报告</RouterLink><span v-else class="muted">请先勾选论文</span><RouterLink v-if="selectedStudyPapers.length > 0 && selectedStudyPapers.length <= 5" class="button secondary small" data-test="trace-selected-citations" :to="citationLink(selectedStudyPapers)">追踪所选论文引用</RouterLink><span v-if="selectedStudyPapers.length > 5" class="muted">引用追踪最多选择 5 篇</span></div>
           <div v-if="collection.papers.length === 0" class="panel empty-state">
             <h3>还没有论文</h3>
             <p>在下方录入论文信息和摘要，再整理证据或发起研究。</p>
@@ -254,6 +256,7 @@ watch(() => route.params.id, () => {
               <a v-if="paper.pdf_url && safeUrl(paper.pdf_url)" :href="safeUrl(paper.pdf_url)!" target="_blank" rel="noopener noreferrer">PDF ↗</a>
               <span v-if="paper.published" class="muted">{{ paper.published }}</span>
             </div>
+            <PaperDocumentControl :collection-id="id" :paper="paper" />
             <p v-if="paper.abstract" class="paper-abstract">{{ paper.abstract }}</p>
             <p v-else class="muted">暂无摘要；摘要是研究分析的重要证据来源。</p>
             <div v-if="paper.categories.length" class="actions category-tags"><span v-for="(category, index) in paper.categories" :key="index" class="tag">{{ category }}</span></div>

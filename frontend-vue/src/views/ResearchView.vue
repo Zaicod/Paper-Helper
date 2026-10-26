@@ -93,7 +93,7 @@ onBeforeUnmount(() => { requestVersion++ })
       <p v-if="loading" class="muted" role="status">正在读取研究任务…</p>
       <div v-if="data?.tasks.length" class="panel task-list">
         <RouterLink v-for="task in data.tasks" :key="task.task_id" class="task-row" :to="{ path: `/research/${task.task_id}`, query: { category, ...(keyword ? { keyword } : {}), page: String(page + 1) } }">
-          <div><span class="tag">{{ task.task_type === 'study_report' ? '学习报告' : '研究分析' }}</span><h2>{{ task.topic }}</h2><p class="muted">创建于 {{ date(task.created_at) }}</p></div>
+          <div><span class="tag">{{ task.task_type === 'citation_trace' ? '引用追踪' : task.task_type === 'search' ? '智能搜索' : task.task_type === 'study_report' ? '学习报告' : '研究分析' }}</span><h2>{{ task.topic }}</h2><p class="muted">创建于 {{ date(task.created_at) }}</p></div>
           <span class="tag" :data-status="task.status">{{ statusLabel[task.status] }}</span><span class="arrow" aria-hidden="true">↗</span>
         </RouterLink>
       </div>

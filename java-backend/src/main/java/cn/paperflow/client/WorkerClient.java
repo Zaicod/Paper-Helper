@@ -38,6 +38,39 @@ public class WorkerClient {
         http=HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(timeout).followRedirects(HttpClient.Redirect.NEVER).build();
     }
     public boolean configured() { return base!=null && token.length()>=32 && !token.contains("\r") && !token.contains("\n"); }
+    public String uploadDocument(String namespace,String filename,byte[] content)throws IOException,InterruptedException{
+        if(!configured()||content.length>25L*1024*1024)throw new IOException("document_upload_unavailable");
+        var duration=Duration.ofSeconds(150);
+        filename=filename==null?"paper.pdf":filename.replace('\\','/');
+        filename=filename.substring(filename.lastIndexOf('/')+1).replaceAll("[\\p{Cntrl}]", "");
+        if(filename.isBlank())filename="paper.pdf";
+        String query="?namespace="+java.net.URLEncoder.encode(namespace,java.nio.charset.StandardCharsets.UTF_8)+"&filename="+java.net.URLEncoder.encode(filename==null?"paper.pdf":filename.substring(0,Math.min(255,filename.length())),java.nio.charset.StandardCharsets.UTF_8);
+        var request=HttpRequest.newBuilder(base.resolve("/internal/v1/documents/upload"+query)).timeout(duration).header("Authorization","Bearer "+token).header("Content-Type","application/pdf").POST(HttpRequest.BodyPublishers.ofByteArray(content)).build();
+        var response=sendBounded(request,duration);if(response.statusCode()!=200)throw new IOException("document_upload_failed");
+        try{return java.util.UUID.fromString(json.readTree(response.body()).path("upload_id").asText()).toString();}catch(RuntimeException e){throw new IOException("document_upload_invalid");}
+    }
+    public cn.paperflow.vo.PaperDocumentVO prepareDocument(String namespace,java.util.Map<String,Object> paper,String upload)throws IOException,InterruptedException{
+        if(!configured())throw new IOException("worker_unconfigured");
+        var data=new java.util.LinkedHashMap<String,Object>();data.put("namespace",namespace);data.put("paper",paper);if(upload!=null)data.put("upload_id",upload);
+        var duration=Duration.ofSeconds(150);
+        var request=HttpRequest.newBuilder(base.resolve("/internal/v1/documents/prepare")).timeout(duration).header("Authorization","Bearer "+token).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofByteArray(json.writeValueAsBytes(data))).build();
+        var response=sendBounded(request,duration);if(response.statusCode()!=200)throw new IOException("document_prepare_failed");
+        cn.paperflow.vo.PaperDocumentVO value=json.readValue(response.body(),cn.paperflow.vo.PaperDocumentVO.class);
+        if(value==null||value.status()==null||!Set.of("ready","missing","blocked","unreadable","timeout","unavailable").contains(value.status())||value.message()==null||value.message().length()>1000||value.message().codePoints().anyMatch(Character::isISOControl))throw new IOException("document_status_invalid");
+        if("ready".equals(value.status())){
+            try{java.util.UUID.fromString(value.documentId());}catch(RuntimeException e){throw new IOException("document_id_invalid");}
+            if(value.sha256()==null||!value.sha256().matches("[a-fA-F0-9]{64}")||value.pageCount()==null||value.pageCount()<1||value.pageCount()>200||value.sourceKind()==null||!Set.of("uploaded","remote").contains(value.sourceKind())||value.filename()==null||value.filename().length()>255||value.preparedAt()==null)throw new IOException("document_status_invalid");
+        }
+        return value;
+    }
+    public byte[] documentFile(String namespace,String id)throws IOException,InterruptedException{
+        if(!configured())throw new IOException("worker_unconfigured");
+        try{java.util.UUID.fromString(id);}catch(RuntimeException e){throw new IOException("document_id_invalid");}
+        var duration=Duration.ofSeconds(60);
+        var request=HttpRequest.newBuilder(base.resolve("/internal/v1/documents/"+id+"/file?namespace="+java.net.URLEncoder.encode(namespace,java.nio.charset.StandardCharsets.UTF_8))).timeout(duration).header("Authorization","Bearer "+token).GET().build();
+        var response=sendBounded(request,duration,25L*1024*1024);
+        if(response.statusCode()!=200||response.body().length<5||!new String(response.body(),0,5,java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-")||!response.headers().firstValue("Content-Type").orElse("").split(";",2)[0].equalsIgnoreCase("application/pdf"))throw new IOException("document_file_invalid");return response.body();
+    }
     public cn.paperflow.vo.ModelTestVO testModel(String provider,String model,String key) throws IOException,InterruptedException {
         if(!configured())throw new IOException("worker_unconfigured");
         Duration deadline=Duration.ofSeconds(20);
@@ -88,6 +121,9 @@ public class WorkerClient {
         if (body.path("status").asText().equals("completed")) {
             JsonNode report=body.path("report");
             if("study_report".equals(report.path("report_type").asText())) validateStudyReport(report);
+            else if("search_report".equals(report.path("report_type").asText())) SearchReportValidator.validate(report);
+            else if("citation_report".equals(report.path("report_type").asText())) CitationReportValidator.validate(report);
+            else if(report.has("report_type")) throw new IOException("worker_invalid_report");
             else if (!report.isObject() || !report.path("topic").isTextual() || !report.path("generated_at").isTextual()
                 || !report.path("papers").isArray() || !report.path("analyses").isArray()
                 || !report.path("synthesis").isObject() || !report.path("idea_portfolio").isObject())
@@ -148,8 +184,11 @@ public class WorkerClient {
         return body;
     }
     private HttpResponse<byte[]> sendBounded(HttpRequest request,Duration totalTimeout) throws IOException,InterruptedException {
+        return sendBounded(request,totalTimeout,8*1024*1024);
+    }
+    private HttpResponse<byte[]> sendBounded(HttpRequest request,Duration totalTimeout,long maximum) throws IOException,InterruptedException {
         // Include the complete response body in both the memory limit and the wall-clock deadline.
-        var operation=http.sendAsync(request,info -> new LimitedBody(8*1024*1024));
+        var operation=http.sendAsync(request,info -> new LimitedBody(maximum));
         try { return operation.get(totalTimeout.toMillis(),java.util.concurrent.TimeUnit.MILLISECONDS); }
         catch(java.util.concurrent.TimeoutException ex) {
             operation.cancel(true); throw new HttpTimeoutException("worker_response_timeout");

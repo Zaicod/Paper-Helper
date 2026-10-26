@@ -2,6 +2,7 @@
 import type { StudyReport } from '../types'
 defineProps<{ report: StudyReport; taskId: string }>()
 function safeUrl(value: string) {
+  if (/^\/api\/library\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/file$/i.test(value)) return value
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null }
   catch { return null }
 }

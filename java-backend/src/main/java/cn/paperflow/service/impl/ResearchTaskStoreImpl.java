@@ -39,16 +39,23 @@ public class ResearchTaskStoreImpl implements ResearchTaskStore {
                     task.setErrorCode("study_report_failed");
                     task.setErrorMessage(snapshot.path("error_message").asText());
                 }
+                if(status.equals("failed") && typedFailure(task,snapshot,"search","search_failed")) {
+                    task.setErrorCode("search_failed");
+                    task.setErrorMessage(snapshot.path("error_message").asText());
+                }
             }
         }
         task.setUpdatedAt(Instant.now()); tasks.update(task);
     }
     private boolean studyFailure(ResearchTask task,JsonNode snapshot) {
+        return typedFailure(task,snapshot,"study_report","study_report_failed");
+    }
+    private boolean typedFailure(ResearchTask task,JsonNode snapshot,String type,String code) {
         String message=snapshot.path("error_message").asText("");
-        if(!"study_report_failed".equals(snapshot.path("error_code").asText())
+        if(!code.equals(snapshot.path("error_code").asText())
             || !snapshot.path("error_message").isTextual() || message.isBlank() || message.length()>1000
             || message.codePoints().anyMatch(Character::isISOControl)) return false;
-        try { return "study_report".equals(json.readTree(task.getPayloadJson()).path("task_type").asText()); }
+        try { return type.equals(json.readTree(task.getPayloadJson()).path("task_type").asText()); }
         catch(java.io.IOException ex) { return false; }
     }
     @Transactional

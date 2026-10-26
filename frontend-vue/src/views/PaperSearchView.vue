@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useSearchDraft } from '../composables/searchDraft'
+import { createSubmission } from '../composables/submission'
 import type { Collection, PaperInput, PaperSearchResult, PaperSource, PaperSort, SearchKeyword } from '../types'
 
 const query = ref(''), source = ref<PaperSource>('auto'), limit = ref(10)
@@ -21,6 +22,27 @@ const filterKey = computed(() => JSON.stringify([keywords.value, query.value.tri
 const canPage = computed(() => !searching.value && submittedFilters.value === filterKey.value)
 watch(source, value => { if (value === 'arxiv' && sort.value === 'citations') sort.value = 'relevance' })
 const auth = useAuthStore()
+const router = useRouter()
+const intelligentTopic = ref(''), intelligentError = ref(''), submittingIntelligent = ref(false)
+const intelligentSubmission = createSubmission()
+let intelligentGeneration = 0
+watch(() => auth.user?.id, () => {
+  intelligentGeneration++; intelligentSubmission.reset(); intelligentTopic.value = ''; intelligentError.value = ''; submittingIntelligent.value = false
+})
+async function intelligentSearch() {
+  if (submittingIntelligent.value) return
+  const topic = intelligentTopic.value.trim()
+  if (!topic || topic.length > 500) { intelligentError.value = '请输入 1 至 500 字的研究问题。'; return }
+  const payload = { topic, mode: 'live' as const, rag: 'none' as const, limit: 10, task_type: 'search' as const }
+  const current = intelligentGeneration
+  submittingIntelligent.value = true; intelligentError.value = ''
+  try {
+    const task = await api.tasks.create({ ...payload, idempotency_key: intelligentSubmission.keyFor(payload) })
+    if (active && current === intelligentGeneration) await router.push(`/research/${encodeURIComponent(task.task_id)}`)
+  } catch (cause) {
+    if (active && current === intelligentGeneration) intelligentError.value = `${message(cause)} 再次提交相同问题会沿用任务标识，避免重复执行。`
+  } finally { if (active && current === intelligentGeneration) submittingIntelligent.value = false }
+}
 const { unavailable: draftUnavailable } = useSearchDraft(computed(() => auth.user?.id ?? null), { query, keywords, keywordMode, source, sort, limit })
 const result = ref<PaperSearchResult | null>(null)
 const searching = ref(false), error = ref(''), collectionError = ref('')
@@ -119,6 +141,13 @@ onBeforeUnmount(() => { active = false; generation++ })
       <p v-if="hasChinese" class="notice">中文关键词会按原文检索，暂不自动翻译。可尝试英文关键词，例如“多模态” → multimodal 或 multimodal learning。</p>
       <p v-if="draftUnavailable" class="notice" role="status">当前浏览器无法保存搜索条件，切换页面后可能需要重新输入。</p>
       <div class="actions"><button class="button primary" :disabled="searching">{{ searching ? '正在检索文献…' : '搜索论文' }}</button><span class="muted">外部来源可能需要数秒；自动模式不会返回演示数据。</span></div>
+    </form>
+    <form class="panel stack intelligent-search" data-test="intelligent-search-form" aria-labelledby="intelligent-search-title" @submit.prevent="intelligentSearch">
+      <div><h2 id="intelligent-search-title">智能搜索</h2><p class="muted">描述研究方向与数据集，先分析问题，再跨来源检索、筛选并按缺口补搜。</p></div>
+      <label class="field" for="intelligent-topic">研究问题<textarea id="intelligent-topic" v-model="intelligentTopic" maxlength="500" :disabled="submittingIntelligent" placeholder="例如：多模态情绪识别 seediv seedvii" /></label>
+      <p class="muted">使用你的个人默认模型。请先在 <RouterLink to="/settings">个人设置</RouterLink> 配置模型与密钥。提交后进入任务详情，搜索进度会自动更新。</p>
+      <p v-if="intelligentError" class="notice error" role="alert">{{ intelligentError }}</p>
+      <div class="actions"><button class="button primary" :disabled="submittingIntelligent">{{ submittingIntelligent ? '正在创建搜索任务…' : '开始智能搜索' }}</button><span class="muted">结果会说明元数据相关性、匹配依据和仍缺少的证据。</span></div>
     </form>
     <p v-if="error" class="notice error" role="alert">{{ error }}<span v-if="result"> 下方保留上一次成功检索的结果。</span></p>
     <section class="panel stack" aria-labelledby="save-destination">

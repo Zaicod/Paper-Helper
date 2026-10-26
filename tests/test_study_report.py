@@ -81,6 +81,16 @@ class StudyReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(report.synthesis)
         self.assertTrue(any(e.stage == 'index' for e in events))
 
+    async def test_topic_reaches_analyst_when_learning_goal_is_blank(self):
+        module = self.modules()
+        topic = 'Analyze architecture, innovations, results and limitations.'
+        for blank_goal in ('', '   '):
+            with self.subTest(learning_goal=blank_goal):
+                team = FakeTeam()
+                await module.StudyService(loader=FakeLoader(), team=team, index=memory_index()).run(
+                    topic, papers=[paper()], learning_goal=blank_goal)
+                self.assertEqual(team.received[0][0], topic)
+
     async def test_pdf_failure_never_falls_back_to_abstract(self):
         module = self.modules()
         class BrokenLoader:

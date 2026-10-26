@@ -14,6 +14,7 @@ async function setup(status: TaskStatus = 'failed') {
   vi.spyOn(api.tasks, 'get').mockImplementation(async id => task(status, id))
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/research/:id', component: TaskDetailView },
+    { path: '/collections', component: { template: '<div />' } },
     { path: '/research', component: { template: '<div>list</div>' } },
     { path: '/settings', component: { template: '<div>settings</div>' } },
   ] })
@@ -34,7 +35,7 @@ describe('retrying failed task records', () => {
   })
   it.each(['failed', 'interrupted'] as const)('offers retry and current configuration guidance for %s', async status => {
     const { wrapper } = await setup(status)
-    expect(wrapper.get('[data-test="retry-task"]').text()).toBe('重试任务')
+    expect(wrapper.get('[data-test="retry-task"]').text()).toBe('原输入重试')
     expect(wrapper.text()).toContain('当前')
     expect(wrapper.text()).toContain('新任务记录')
     expect(wrapper.text()).toContain('原任务记录会保留')
@@ -132,4 +133,15 @@ describe('retrying failed task records', () => {
     await flushPromises()
     expect(push).not.toHaveBeenCalled()
   })
+})
+
+it('repairs using a new idempotent intent and keeps original retry available', async () => {
+  const {wrapper} = await setup()
+  const repair = vi.spyOn(api.tasks,'repair').mockRejectedValue(new Error('请先准备当前论文正文'))
+  expect(wrapper.text()).toContain('原快照')
+  await wrapper.get('[data-test="repair-task"]').trigger('click'); await flushPromises()
+  await wrapper.get('[data-test="repair-task"]').trigger('click'); await flushPromises()
+  expect(repair).toHaveBeenCalledTimes(2)
+  expect(repair.mock.calls[0]![1]).toEqual(repair.mock.calls[1]![1])
+  expect(wrapper.text()).toContain('请先准备当前论文正文')
 })

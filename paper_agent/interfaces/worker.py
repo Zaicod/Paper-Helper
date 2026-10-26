@@ -14,7 +14,7 @@ import os
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Literal,Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -27,6 +27,12 @@ from paper_agent.core.errors import PublicResearchError
 from paper_agent.core.study import StudyReport
 from paper_agent.services.research import ResearchOptions, ResearchService
 from paper_agent.services.study import StudyService
+from paper_agent.core.search_agent import SearchReport
+from paper_agent.core.citation_agent import CitationReport
+from paper_agent.services.citation_tracking import CitationTrackingService
+from paper_agent.services.intelligent_search import IntelligentSearchService
+from paper_agent.tools.prepared_documents import PreparedDocumentStore, PreparedPDFLoader
+from paper_agent.tools.study_pdf import MAX_PDF_BYTES
 from paper_agent.services.paper_search import search_papers, search_paper_page
 from paper_agent.tools.search import SearchError, SearchTimeout, SearchRateLimit
 from paper_agent.services.model_runtime import (RuntimeCredentials, ModelProbe,
@@ -66,6 +72,13 @@ class WorkerPaper(Paper):
         return value
 
 
+class PrepareDocumentInput(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    namespace:str=Field(pattern=r'^java-user:[1-9]\d{0,18}$')
+    paper:WorkerPaper
+    upload_id:UUID|None=None
+
+
 class TaskInput(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     contract_version: Literal[1]
@@ -73,7 +86,8 @@ class TaskInput(BaseModel):
     limit: int = Field(default=3, ge=1, le=20)
     options: WorkerOptions
     papers: list[WorkerPaper] | None = Field(default=None, min_length=1, max_length=20)
-    task_type: Literal['research', 'study_report'] = 'research'
+    task_type: Literal['research', 'study_report', 'search', 'citation_trace'] = 'research'
+    citation_direction: Literal['references','citations','both'] | None = None
     index_namespace: str | None = Field(default=None, min_length=1, max_length=128,
                                         pattern=r'^[A-Za-z0-9:_-]+$')
     rebuild_index: bool = False
@@ -82,9 +96,26 @@ class TaskInput(BaseModel):
     reflection: str = Field(default='', max_length=50000)
     collection_note: str = Field(default='', max_length=50000)
     notes: dict[str, str] = Field(default_factory=dict, max_length=20)
+    prepared_documents: dict[str, Annotated[str,Field(pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')]] = Field(default_factory=dict,max_length=20)
+    library_selection: dict | None = None
 
     @model_validator(mode='after')
     def study_inputs(self):
+        if self.task_type == 'citation_trace':
+            if (not self.papers or len(self.papers)>5 or self.options.mode!='live'
+                    or self.options.rag!='none' or self.options.credential_source!='personal'
+                    or not self.index_namespace or not __import__('re').fullmatch(r'java-user:[1-9]\d{0,18}',self.index_namespace)):
+                raise ValueError('Citation tracking requires 1-5 owned seeds and a personal live model without RAG')
+            if self.citation_direction is None: self.citation_direction='both'
+        elif self.citation_direction is not None:
+            raise ValueError('Citation direction requires citation task')
+        if self.prepared_documents and (self.task_type!='study_report' or not self.papers
+                or set(self.prepared_documents)!={p.paper_id for p in self.papers}
+                or not self.index_namespace or not self.index_namespace.startswith('java-user:')):
+            raise ValueError('Prepared documents must match all selected study papers and owner namespace')
+        if self.task_type == 'search' and (self.papers is not None or self.options.mode != 'live'
+                or self.options.rag != 'none' or self.options.credential_source != 'personal'):
+            raise ValueError('Intelligent search requires a personal live model, no RAG and no selected papers')
         if any(len(key) > 255 or len(value) > 50000 for key, value in self.notes.items()):
             raise ValueError('Study notes exceed limits')
         if self.task_type == 'study_report':
@@ -170,7 +201,8 @@ class Ledger:
 
 
 def create_app(db_path: str | Path | None = None, service_token: str | None = None,
-               service_factory=None, search_factory=None, study_factory=None, model_tester=None) -> FastAPI:
+               service_factory=None, search_factory=None, study_factory=None, model_tester=None,
+               intelligent_search_factory=None,document_store_factory=None,citation_factory=None) -> FastAPI:
     token = service_token if service_token is not None else os.getenv('PAPERFLOW_SERVICE_TOKEN', '')
     if len(token.strip()) < 32:
         raise ValueError('PAPERFLOW_SERVICE_TOKEN must contain at least 32 characters')
@@ -184,6 +216,7 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
         app.state.ledger = ledger
         app.state.queue = queue
         app.state.runtime_credentials = {}
+        app.state.document_store = (document_store_factory or PreparedDocumentStore)(path.parent/'documents')
 
         async def executor():
             while True:
@@ -210,8 +243,25 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
                         runtime_credentials=app.state.runtime_credentials.get(task_id))
                     if options.mode == 'live' and options.credential_source == 'personal':
                         require_personal_credentials(options)
-                    if payload.task_type == 'study_report':
+                    if payload.task_type == 'citation_trace':
+                        service=(citation_factory or CitationTrackingService)(options)
+                        report=await service.run(payload.topic,payload.limit,papers=payload.papers,
+                            direction=payload.citation_direction,on_event=on_event)
+                        report=CitationReport.model_validate(report)
+                        if (report.topic!=payload.topic or len(report.results)>payload.limit
+                                or report.direction!=payload.citation_direction
+                                or [p.model_dump() for p in report.seeds]!=[p.model_dump() for p in payload.papers]):
+                            raise ValueError('Citation report must preserve task snapshot')
+                    elif payload.task_type == 'search':
+                        search_service = (intelligent_search_factory or IntelligentSearchService)(options)
+                        report = await search_service.run(payload.topic,payload.limit,on_event=on_event)
+                        report = SearchReport.model_validate(report)
+                        if report.topic != payload.topic or len(report.results)>payload.limit:
+                            raise ValueError('Search report must preserve the task question and result bound')
+                    elif payload.task_type == 'study_report':
                         study = (study_factory or StudyService)(options)
+                        if payload.prepared_documents:
+                            study.loader=PreparedPDFLoader(app.state.document_store,options.index_namespace,payload.prepared_documents)
                         report = await study.run(payload.topic, papers=payload.papers, on_event=on_event,
                             notes=payload.notes, learning_goal=payload.learning_goal,
                             reflection=payload.reflection, collection_note=payload.collection_note)
@@ -232,9 +282,13 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
                     raise
                 except Exception as exc:
                     is_study = payload is not None and payload.task_type == 'study_report'
-                    code = 'study_report_failed' if is_study else 'research_failed'
+                    is_search = payload is not None and payload.task_type == 'search'
+                    is_citation = payload is not None and payload.task_type == 'citation_trace'
+                    code = 'citation_trace_failed' if is_citation else 'search_failed' if is_search else ('study_report_failed' if is_study else 'research_failed')
                     message = (str(exc)[:1000] if isinstance(exc, PublicResearchError)
-                               else ('学习报告生成失败，请检查模型配置和 PDF 后重试。' if is_study else
+                               else ('引用追踪失败，请检查模型设置或论文来源后重试。' if is_citation else
+                                     '智能搜索失败，请检查模型设置后重试。' if is_search else
+                                     '学习报告生成失败，请检查模型配置和 PDF 后重试。' if is_study else
                                      '研究执行失败，请检查执行端配置或稍后新建任务。'))
                     with ledger.db:
                         ledger.db.execute("""UPDATE worker_tasks SET status='failed', report=NULL,
@@ -277,7 +331,8 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
         chunks = []
         async for chunk in request.stream():
             size += len(chunk)
-            if size > MAX_BODY:
+            allowed = MAX_PDF_BYTES if request.method=='POST' and request.url.path=='/internal/v1/documents/upload' else MAX_BODY
+            if size > allowed:
                 return JSONResponse({'detail': 'Request is too large'}, status_code=413)
             chunks.append(chunk)
         request._body = b''.join(chunks)
@@ -292,6 +347,9 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
         task_id = str(task_id)
         ledger = app.state.ledger
         durable = payload.model_dump(mode='json')
+        if not durable.get('prepared_documents'):durable.pop('prepared_documents',None)
+        if durable.get('library_selection') is None:durable.pop('library_selection',None)
+        if durable.get('citation_direction') is None:durable.pop('citation_direction',None)
         # Preserve hashes of pre-settings server-mode tasks on duplicate replay.
         if durable['options']['credential_source'] == 'server':
             durable['options'].pop('credential_source')
@@ -322,6 +380,24 @@ def create_app(db_path: str | Path | None = None, service_token: str | None = No
         except Exception as error:
             return {'success': False, 'message': probe_error_message(error)}
         return {'success': True, 'message': '模型连接成功，已验证已保存的密钥与模型。'}
+
+    @app.post('/internal/v1/documents/upload',dependencies=[Depends(authenticate)])
+    async def upload_document(request:Request,namespace:str=Query(pattern=r'^java-user:[1-9]\d{0,18}$'),filename:str=Query(default='document.pdf',max_length=255)):
+        try:
+            identifier=await app.state.document_store.upload(namespace,filename,await request.body())
+            return {'upload_id':identifier}
+        except ValueError:raise HTTPException(422,'请上传不超过 25 MiB 的有效 PDF。') from None
+
+    @app.post('/internal/v1/documents/prepare',dependencies=[Depends(authenticate)])
+    async def prepare_document(body:PrepareDocumentInput):
+        try:return await app.state.document_store.prepare(body.namespace,body.paper,body.upload_id)
+        except ValueError:raise HTTPException(404,'上传文件不可用，请重新上传。') from None
+
+    @app.get('/internal/v1/documents/{document_id}/file',dependencies=[Depends(authenticate)])
+    async def private_document(document_id:UUID,namespace:str=Query(pattern=r'^java-user:[1-9]\d{0,18}$')):
+        try:content=await app.state.document_store.read_pdf(namespace,document_id)
+        except (ValueError,OSError):raise HTTPException(404,'正文文件不可用。') from None
+        return Response(content,media_type='application/pdf',headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'attachment; filename="paper.pdf"'})
 
     @app.get('/internal/v1/tasks/{task_id}', dependencies=[Depends(authenticate)])
     async def snapshot(task_id: UUID):

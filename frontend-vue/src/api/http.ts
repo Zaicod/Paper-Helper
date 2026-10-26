@@ -14,9 +14,10 @@ async function send<T>(path: string, method: string, body?: unknown, token?: Csr
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const headers = new Headers({ Accept: 'application/json' })
-    if (body !== undefined) headers.set('Content-Type', 'application/json')
+    const multipart = body instanceof FormData
+    if (body !== undefined && !multipart) headers.set('Content-Type', 'application/json')
     if (token) headers.set(token.header_name, token.token)
-    const response = await fetch(`/api${path}`, { method, headers, credentials: 'same-origin', signal: controller.signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+    const response = await fetch(`/api${path}`, { method, headers, credentials: 'same-origin', signal: controller.signal, ...(body === undefined ? {} : { body: multipart ? body : JSON.stringify(body) }) })
     if (response.status === 401) { resetCsrf(); onUnauthorized() }
     if (response.status === 204 && response.ok) return undefined as T
     let result: { code?: number; msg?: string; data?: T }
